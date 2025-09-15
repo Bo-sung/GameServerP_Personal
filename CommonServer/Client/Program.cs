@@ -1,189 +1,139 @@
-﻿
-using System;
-using System.IO;
+﻿using System;
 using System.Net.Sockets;
-using System.Reflection.PortableExecutable;
-using System.Text;
+using System.Threading.Tasks;
 
-
+/// <summary>
+/// 메인 프로그램 - 로그인 서버 → 게임/채팅 서버 순차 연결
+/// </summary>
 internal class Program
 {
+    private static string defaultHost = "127.0.0.1";
+    private static int defaultPort = 5000;
 
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
-        string host = args.Length > 0 ? args[0] : "127.0.0.1";
-        int port = args.Length > 1 && int.TryParse(args[1], out var p) ? p : 5000;
+        defaultHost = args.Length > 0 ? args[0] : "127.0.0.1";
+        defaultPort = args.Length > 1 && int.TryParse(args[1], out var p) ? p : 5000;
+
+        Console.WriteLine("=== 클라이언트 시작 ===");
+        Console.WriteLine($"기본 서버: {defaultHost}:{defaultPort}");
+
+        try
+        {
+            // 1단계: 로그인 서버 접속 및 로그인
+            var loginResult = await ConnectToLoginServerAsync();
+
+            if (!loginResult.Success)
+            {
+                Console.WriteLine("[CLIENT] 로그인 실패. 프로그램을 종료합니다.");
+                Console.WriteLine($"[CLIENT] 실패 사유: {loginResult.Message}");
+                return;
+            }
+
+            Console.WriteLine($"\n[CLIENT] 로그인 성공!");
+            Console.WriteLine($"[CLIENT] 사용자: {loginResult.Username}");
+            Console.WriteLine($"[CLIENT] 발견된 서버 수: {loginResult.Servers.Count}개");
+
+            // 서버 목록 출력
+            foreach (var server in loginResult.Servers)
+            {
+                Console.WriteLine($"[CLIENT] - {server.Type}: {server.Address}");
+            }
+
+            // 2단계: 다음 서버 선택 및 연결
+            await HandleServerSelection(loginResult);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[CLIENT] 전체 오류: {ex.Message}");
+        }
+
+        Console.WriteLine("\n프로그램을 종료합니다. 아무 키나 누르세요...");
+        Console.ReadKey();
+    }
+
+    /// <summary>
+    /// 로그인 서버 접속 및 로그인 처리
+    /// </summary>
+    private static async Task<LoginResult> ConnectToLoginServerAsync()
+    {
+        Console.WriteLine($"\n=== 로그인 서버 접속 ({defaultHost}:{defaultPort}) ===");
 
         try
         {
             using var client = new TcpClient();
-            client.Connect(host, port);
-            TicTacToeClient.HandleMainLoop(client);
+            await client.ConnectAsync(defaultHost, defaultPort);
+            Console.WriteLine($"[LOGIN] 로그인 서버 연결 성공");
 
-            Console.WriteLine($"[CLIENT] Connected to {host}:{port}");
+            var handler = new LoginServerHandler();
+            var handlerTask = handler.HandleMainLoopAsync(client);
 
+            // 사용자 입력 받기
+            Console.Write("사용자명: ");
+            var username = Console.ReadLine();
+            Console.Write("패스워드: ");
+            var password = Console.ReadLine();
+
+            // 로그인 요청 전송
+            handler.SendLoginRequest(username, password);
+
+            // 로그인 결과 대기
+            var result = await handler.WaitForLoginResult(5000);
+
+            // 핸들러 종료
+            handler.Shutdown();
+
+            return result;
         }
         catch (Exception ex)
         {
-            Console.WriteLine("[CLIENT] Error: " + ex.Message);
+            Console.WriteLine($"[LOGIN] 로그인 서버 접속 실패: {ex.Message}");
+            return new LoginResult { Success = false, Message = ex.Message };
         }
     }
 
-}
-
-
-class TicTacToeClient
-{
-    const char o = 'O';
-    const char x = 'X';
-    const char empty = ' ';
-    const char Wall = '□';
-    public static void DrawBoard(string wire)
+    /// <summary>
+    /// 서버 선택 및 연결 처리
+    /// </summary>
+    private static async Task HandleServerSelection(LoginResult loginResult)
     {
-        char board(int i) => wire[i] == '-' ? ' ' : wire[i];
-
-        Console.WriteLine();
-        Console.WriteLine(" {0} | {1} | {2} ", board(1), board(2), board(3));
-        Console.WriteLine("───┼───┼───");
-        Console.WriteLine(" {0} | {1} | {2} ", board(4), board(5), board(6));
-        Console.WriteLine("───┼───┼───");
-        Console.WriteLine(" {0} | {1} | {2} ", board(7), board(8), board(9));
-        Console.WriteLine();
-    }
-
-    public static void HandleImmediate(string line, ref string? lastBoard)
-    {
-        // MOVE 직후 서버가 바로 보내는 첫 라인을 여기서 소화
-        if (line.StartsWith("BOARD "))
-        {
-            lastBoard = line.Substring("BOARD ".Length);
-            DrawBoard(lastBoard);
-        }
-        else if (line.StartsWith("RESULT "))
-        {
-            var result = line.Substring("RESULT ".Length).Trim();
-            if (result == "X") Console.WriteLine("You win! 🎉");
-            else if (result == "O") Console.WriteLine("Server wins! 🤖");
-            else Console.WriteLine("It's a tie. 🤝");
-        }
-        else if (line.StartsWith("OPPONENT_MOVE "))
-        {
-            var tok = line.Split(' ');
-            Console.WriteLine($"[INFO] Server moved at {tok[1]}.");
-        }
-        else if (line.StartsWith("BYE"))
-        {
-            Console.WriteLine("[CLIENT] Game over. Bye!");
-            Environment.Exit(0);
-        }
-        else if (line.StartsWith("INFO "))
-        {
-            Console.WriteLine(line.Substring(5));
-        }
-        else if (line.StartsWith("INVALID"))
-        {
-            Console.WriteLine($"[SERVER] {line}");
-        }
-        else
-        {
-            Console.WriteLine($"[SERVER RAW] {line}");
-        }
-    }
-
-    public static void HandleMainLoop(TcpClient client)
-    {
-        using var ns = client.GetStream();
-        using var reader = new StreamReader(ns, Encoding.UTF8);
-        using var writer = new StreamWriter(ns, Encoding.UTF8) { AutoFlush = true };
-
-        string? lastBoard = null;
-        string myTurn = "";
-        string oppositeTurn = "";
         while (true)
         {
-            string? line = reader.ReadLine();
-            if (line == null) { Console.WriteLine("[CLIENT] Disconnected."); break; }
-            if (line.StartsWith("BOARD "))
-            {
-                lastBoard = line.Substring("BOARD ".Length);
-                TicTacToeClient.DrawBoard(lastBoard);
-            }
-            else if (line.StartsWith("YOUR_MOVE"))
-            {
-                while (true)
-                {
-                    Console.Write("Enter a number (1-9): ");
-                    var input = Console.ReadLine();
-                    if (int.TryParse(input, out int n))
-                    {
-                    awaitable:
-                        writer.WriteLine($"MOVE {n}");
-                        // 서버가 INVALID를 보낼 수 있으므로 다음 라인을 미리 본다
-                        string? resp = reader.ReadLine();
-                        if (resp == null) { Console.WriteLine("[CLIENT] Disconnected."); return; }
+            var nextServer = SelectNextServer();
 
-                        if (resp.StartsWith("INVALID"))
-                        {
-                            Console.WriteLine($"[SERVER] {resp}");
-                            continue; // 다시 입력
-                        }
-                        // INVALID가 아니면 일반 진행라인일 수 있으므로 처리 루프에 합류
-                        TicTacToeClient.HandleImmediate(resp, ref lastBoard);
-                    }
-                    else
-                    {
-                        Console.WriteLine("Please enter a valid integer 1-9.");
-                    }
-                    break; // 사용자 수 하나 처리 후 루프 탈출
-                }
-            }
-            else if (line.StartsWith("OPPONENT_MOVE "))
+            switch (nextServer)
             {
-                var tok = line.Split(' ');
-                Console.WriteLine($"[INFO] Server moved at {tok[1]}.");
-            }
-            else if (line.StartsWith("RESULT "))
-            {
-                var result = line.Substring("RESULT ".Length).Trim();
-                if (result == myTurn) Console.WriteLine("You win! 🎉");
-                else if (result == oppositeTurn) Console.WriteLine("Server wins! 🤖");
-                else Console.WriteLine("It's a tie. 🤝");
-            }
-            else if (line.StartsWith("BYE"))
-            {
-                Console.WriteLine("[CLIENT] Game over. Bye!");
-                break;
-            }
-            else if (line.StartsWith("INFO You are "))
-            {
-                string temp = line;
-                temp = temp.Replace("INFO You are ", "");
-                if (temp.Contains("X"))
-                {
-                    myTurn = "X";
-                    oppositeTurn = "O";
-                }
-                else if (temp.Contains("O"))
-                {
-                    myTurn = "O";
-                    oppositeTurn = "X";
-                }
-                else
+                case "quit":
+                    Console.WriteLine("[CLIENT] 프로그램을 종료합니다.");
                     return;
+                default:
+                    Console.WriteLine("[CLIENT] 잘못된 선택입니다.");
+                    continue;
             }
-            else if (line.StartsWith("INFO "))
-            {
-                Console.WriteLine(line.Substring(5));
-            }
-            else if (line.StartsWith("INVALID"))
-            {
-                Console.WriteLine($"[SERVER] {line}");
-            }
-            else
-            {
-                // 예기치 않은 메시지
-                Console.WriteLine($"[SERVER RAW] {line}");
-            }
+
+            Console.WriteLine("\n다른 서버에 연결하시겠습니까?");
         }
+    }
+
+    /// <summary>
+    /// 다음 서버 선택
+    /// </summary>
+    private static string SelectNextServer()
+    {
+        Console.WriteLine("\n=== 서버 선택 ===");
+        Console.WriteLine("1. 게임 서버 접속");
+        Console.WriteLine("2. 채팅 서버 접속");
+        Console.WriteLine("3. 프로그램 종료");
+        Console.Write("선택 (1-3): ");
+
+        var input = Console.ReadLine();
+
+        return input switch
+        {
+            "1" => "game",
+            "2" => "chat",
+            "3" => "quit",
+            _ => "invalid"
+        };
     }
 }
