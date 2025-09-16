@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Server
 {
-    public class User
+    public class NetworkUserBase
     {
         protected NetworkStream? m_networkStream;
         protected TcpClient? m_TCP_Client;
@@ -21,7 +21,7 @@ namespace Server
 
         public EndPoint? EndPoint => m_TCP_Client?.Client.RemoteEndPoint;
 
-        public User(TcpClient client)
+        public NetworkUserBase(TcpClient client)
         {
             if (client == null)
                 return;
@@ -31,7 +31,7 @@ namespace Server
             this.m_writerStream = new StreamWriter(m_networkStream, Encoding.UTF8) { AutoFlush = true };
         }
 
-        ~User()
+        ~NetworkUserBase()
         {
             Close();
         }

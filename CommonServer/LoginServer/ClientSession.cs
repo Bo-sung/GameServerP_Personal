@@ -2,8 +2,8 @@
 
 namespace Server
 {
-    // User 클래스를 확장하여 메시지 처리 기능 추가
-    public class EnhancedUser : User
+    // ClientSession 클래스를 확장하여 메시지 처리 기능 추가
+    public class ClientSession : NetworkUserBase
     {
         public string Username { get; set; } = "";
         public bool IsLoggedIn { get; set; } = false;
@@ -12,13 +12,23 @@ namespace Server
         private NetworkService _networkService;
         private bool _isRunning = true;
 
-        public EnhancedUser(TcpClient client, int index, NetworkService networkService) : base(client)
+        private Dictionary<int, Func<Protocol, Task>> _protocolHandlers = new();
+
+        public ClientSession(TcpClient client, int index, NetworkService networkService) : base(client)
         {
             Index = index;
             _networkService = networkService;
+            RegisterHandlers();
 
             // 비동기로 메시지 수신 시작
             _ = Task.Run(ReceiveMessagesAsync);
+        }
+
+        private void RegisterHandlers()
+        {
+            _protocolHandlers.Add(Protocol.IDs.USER_LOGIN_REQUEST, HandleLoginRequestAsync);
+            _protocolHandlers.Add(Protocol.IDs.USER_LOGOUT_REQUEST, HandleLogoutRequestAsync);
+            _protocolHandlers.Add(Protocol.IDs.PING_REQUEST, HandlePingRequestAsync);
         }
 
         private async Task ReceiveMessagesAsync()
@@ -30,21 +40,21 @@ namespace Server
                     var message = ReceiveString();
                     if (message == null)
                     {
-                        Console.WriteLine($"[USER {Index}] 연결 종료");
+                        Console.WriteLine($"[SESSION {Index}] 연결 종료");
                         break;
                     }
 
-                    Console.WriteLine($"[USER {Index}] 메시지 수신: {message}");
+                    Console.WriteLine($"[SESSION {Index}] 메시지 수신: {message}");
                     await ProcessMessageAsync(message);
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[USER {Index}] 수신 오류: {ex.Message}");
+                Console.WriteLine($"[SESSION {Index}] 수신 오류: {ex.Message}");
             }
             finally
             {
-                _networkService.RemoveUser(Index);
+                _networkService.RemoveClientSession(Index);
             }
         }
 
@@ -59,12 +69,12 @@ namespace Server
                 }
                 else
                 {
-                    Console.WriteLine($"[USER {Index}] 프로토콜 파싱 실패: {message}");
+                    Console.WriteLine($"[SESSION {Index}] 프로토콜 파싱 실패: {message}");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[USER {Index}] 메시지 처리 오류: {ex.Message}");
+                Console.WriteLine($"[SESSION {Index}] 메시지 처리 오류: {ex.Message}");
             }
         }
 
@@ -105,27 +115,20 @@ namespace Server
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[USER {Index}] 프로토콜 파싱 오류: {ex.Message}");
+                Console.WriteLine($"[SESSION {Index}] 프로토콜 파싱 오류: {ex.Message}");
                 return null;
             }
         }
 
         private async Task HandleProtocolAsync(Protocol protocol)
         {
-            switch (protocol.ID)
+            if (_protocolHandlers.TryGetValue(protocol.ID, out var handler))
             {
-                case Protocol.IDs.USER_LOGIN_REQUEST:
-                    await HandleLoginRequestAsync(protocol);
-                    break;
-                case Protocol.IDs.USER_LOGOUT_REQUEST:
-                    await HandleLogoutRequestAsync(protocol);
-                    break;
-                case Protocol.IDs.PING_REQUEST:
-                    await HandlePingRequestAsync(protocol);
-                    break;
-                default:
-                    Console.WriteLine($"[USER {Index}] 알 수 없는 프로토콜 ID: {protocol.ID}");
-                    break;
+                await handler(protocol);
+            }
+            else
+            {
+                Console.WriteLine($"[SESSION {Index}] 등록되지 않은 프로토콜 ID: {protocol.ID}");
             }
         }
 
@@ -134,7 +137,7 @@ namespace Server
             var username = protocol.Parameter.GetValueOrDefault(0, "").ToString();
             var password = protocol.Parameter.GetValueOrDefault(1, "").ToString();
 
-            Console.WriteLine($"[USER {Index}] 로그인 요청: {username}");
+            Console.WriteLine($"[SESSION {Index}] 로그인 요청: {username}");
 
             // 간단한 로그인 검증 (실제로는 DB 조회 등)
             if (!string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password))
@@ -153,7 +156,7 @@ namespace Server
                 response.SetParam(4, $"{ServerInfo.Server2.Type}:{ServerInfo.Server2.Address}");
 
                 Send(response, true);
-                Console.WriteLine($"[USER {Index}] 로그인 성공: {username}");
+                Console.WriteLine($"[SESSION {Index}] 로그인 성공: {username}");
             }
             else
             {
@@ -162,13 +165,13 @@ namespace Server
                 response.SetParam(0, "아이디 또는 패스워드가 비어있습니다");
 
                 Send(response, true);
-                Console.WriteLine($"[USER {Index}] 로그인 실패: 빈 정보");
+                Console.WriteLine($"[SESSION {Index}] 로그인 실패: 빈 정보");
             }
         }
 
         private async Task HandleLogoutRequestAsync(Protocol protocol)
         {
-            Console.WriteLine($"[USER {Index}] 로그아웃 요청: {Username}");
+            Console.WriteLine($"[SESSION {Index}] 로그아웃 요청: {Username}");
 
             var response = new Protocol(Protocol.IDs.USER_LOGOUT_SUCCESS, Protocol.ProtocolType.ToClient);
             response.SetParam(0, "로그아웃 완료");
@@ -178,7 +181,7 @@ namespace Server
 
             IsLoggedIn = false;
             Username = "";
-            Console.WriteLine($"[USER {Index}] 로그아웃 완료");
+            Console.WriteLine($"[SESSION {Index}] 로그아웃 완료");
         }
 
         private async Task HandlePingRequestAsync(Protocol protocol)
@@ -186,7 +189,7 @@ namespace Server
             var response = new Protocol(Protocol.IDs.PONG_RESPONSE, Protocol.ProtocolType.ToClient);
             response.SetParam(0, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
             Send(response, true);
-            Console.WriteLine($"[USER {Index}] Ping 응답 전송");
+            Console.WriteLine($"[SESSION {Index}] Ping 응답 전송");
         }
 
         public override void Close()

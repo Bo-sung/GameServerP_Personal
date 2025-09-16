@@ -23,7 +23,7 @@ namespace Server
         private IPAddress _iPAddress = IPAddress.Any;
         private int _port = DEFAULT_PORT;
 
-        private EnhancedUser[] users = new EnhancedUser[MAX_USERS];
+        private ClientSession[] users = new ClientSession[MAX_USERS];
         private int nextUserIndex = 0;
 
         private TcpListener listener;
@@ -149,11 +149,10 @@ namespace Server
                     return false;
                 }
 
-                users[nextUserIndex] = new EnhancedUser(client, nextUserIndex, this);
+                users[nextUserIndex] = new ClientSession(client, nextUserIndex, this);
                 SetNextUserIndex();
             }
 
-            // USER_ENTER_SUCCESS 전송
             Protocol proto = Protocol.USER_ENTER_SUCCESS;
             proto.SetParam(0, "접속을 환영합니다");
             users[userindex].Send(proto, true);
@@ -208,7 +207,7 @@ namespace Server
             }
         }
 
-        public EnhancedUser GetUser(int index)
+        public User GetUser(int index)
         {
             if (index >= 0 && index < MAX_USERS)
             {
