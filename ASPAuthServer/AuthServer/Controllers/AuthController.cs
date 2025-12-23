@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using AuthServer.Models;
 using AuthServer.Settings;
 using AuthServer.Services;
+using AuthServer.Data.Repositories;
 
 namespace AuthServer.Controllers
 {
@@ -11,17 +12,40 @@ namespace AuthServer.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
+        private readonly IUserRepository _userRepository;
         private readonly IOptionsSnapshot<JwtSettings> _jwtSettings;
         private readonly ILogger<AuthController> _logger;
 
         public AuthController(
             IAuthService authService,
+            IUserRepository userRepository,
             IOptionsSnapshot<JwtSettings> jwtSettings,
             ILogger<AuthController> logger)
         {
             _authService = authService;
+            _userRepository = userRepository;
             _jwtSettings = jwtSettings;
             _logger = logger;
+        }
+
+        // GET: api/auth/users/{id}
+        [HttpGet("users/{id}")]
+        public async Task<IActionResult> GetUserById(int id)
+        {
+            _logger.LogInformation("Get user by id: {UserId}", id);
+
+            var user = await _userRepository.GetByIdAsync(id);
+            if (user == null)
+            {
+                return NotFound(new ErrorResponse("USER_NOT_FOUND", "사용자를 찾을 수 없습니다."));
+            }
+
+            return Ok(new UserInfoResponse(
+                UserId: user.Id.ToString(),
+                Username: user.Username,
+                Email: user.Email,
+                CreatedAt: user.CreatedAt
+            ));
         }
 
         // POST: api/auth/register
@@ -41,8 +65,9 @@ namespace AuthServer.Controllers
                 return BadRequest(new ErrorResponse("REGISTER_FAILED", message ?? "회원가입 실패"));
             }
 
+            // RESTful: 생성된 리소스 조회 URL을 Location 헤더에 포함
             return CreatedAtAction(
-                nameof(Register),
+                nameof(GetUserById),
                 new { id = userId },
                 new
                 {

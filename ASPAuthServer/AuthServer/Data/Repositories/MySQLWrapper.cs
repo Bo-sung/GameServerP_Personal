@@ -12,7 +12,12 @@ namespace AuthServer.Data.Repositories
             _connectionFactory = connectionFactory;
         }
 
-        // 단일 결과 조회 (SELECT ... LIMIT 1)
+        /// <summary>
+        /// 쿼리 발송. (SELECT ... LIMIT 1)
+        /// </summary>
+        /// <param name="sql"></param>
+        /// <param name="parameters"></param>
+        /// <returns></returns>
         public async Task<T?> QueryFirstOrDefaultAsync(string sql, Dictionary<string, object>? parameters = null)
         {
             using var connection = (MySqlConnection)_connectionFactory.CreateConnection();
@@ -30,7 +35,12 @@ namespace AuthServer.Data.Repositories
             return null;
         }
 
-        // 여러 결과 조회 (SELECT ...)
+        /// <summary>
+        /// 쿼리 발송. (SELECT ...)
+        /// </summary>
+        /// <param name="sql"></param>
+        /// <param name="parameters"></param>
+        /// <returns></returns>
         public async Task<List<T>> QueryAsync(string sql, Dictionary<string, object>? parameters = null)
         {
             var results = new List<T>();
@@ -50,7 +60,12 @@ namespace AuthServer.Data.Repositories
             return results;
         }
 
-        // INSERT, UPDATE, DELETE (영향받은 행 수 반환)
+        /// <summary>
+        /// 쿼리 실행 (INSERT, UPDATE, DELETE)
+        /// </summary>
+        /// <param name="sql"></param>
+        /// <param name="parameters"></param>
+        /// <returns></returns>
         public async Task<int> ExecuteAsync(string sql, Dictionary<string, object>? parameters = null)
         {
             using var connection = (MySqlConnection)_connectionFactory.CreateConnection();
@@ -62,7 +77,13 @@ namespace AuthServer.Data.Repositories
             return await command.ExecuteNonQueryAsync();
         }
 
-        // COUNT, LAST_INSERT_ID 등 단일 값 반환
+        /// <summary>
+        /// 단일 값 반환용 쿼리 실행.
+        /// </summary>
+        /// <typeparam name="TResult"></typeparam>
+        /// <param name="sql"></param>
+        /// <param name="parameters"></param>
+        /// <returns></returns>
         public async Task<TResult> ExecuteScalarAsync<TResult>(string sql, Dictionary<string, object>? parameters = null)
         {
             using var connection = (MySqlConnection)_connectionFactory.CreateConnection();

@@ -125,27 +125,68 @@ Key Pattern:
 
 ## API 설계
 
-### 회원가입
+### RESTful 설계 원칙 적용
+
+이 프로젝트는 RESTful API 설계 원칙을 따릅니다:
+- 리소스 중심 URL 설계
+- 적절한 HTTP 메서드 사용 (GET, POST, PUT, DELETE)
+- HTTP 상태 코드 활용 (200 OK, 201 Created, 400 Bad Request, 401 Unauthorized, 404 Not Found)
+- Location 헤더를 통한 리소스 위치 제공
+
+### 사용자 조회 (RESTful) - 구현 완료
+```
+GET /api/auth/users/{id}
+Path Parameter:
+- id: 사용자 ID (int)
+
+Response (200 OK):
+{
+  "userId": "12345",
+  "username": "user123",
+  "email": "user@example.com",
+  "createdAt": "2025-01-15T10:30:00Z"
+}
+
+Response (404 Not Found):
+{
+  "code": "USER_NOT_FOUND",
+  "message": "사용자를 찾을 수 없습니다."
+}
+```
+
+### 회원가입 - 구현 완료
 ```
 POST /api/auth/register
 Request Body:
 {
-  "username": "string (optional)",
-  "password": "string (optional)",
-  "email": "string (optional)",
-  "registrationType": "manual" | "auto_password" | "guest"
+  "username": "string",
+  "password": "string",
+  "email": "string (optional)"
 }
 
-Response:
+Response (201 Created):
+HTTP/1.1 201 Created
+Location: https://localhost:5001/api/auth/users/12345
+
 {
-  "success": true,
   "userId": 12345,
   "username": "user123",
-  "generatedPassword": "auto_pw" (옵션 2, 3인 경우)
+  "message": "회원가입 성공"
+}
+
+Response (400 Bad Request):
+{
+  "code": "REGISTER_FAILED",
+  "message": "이미 존재하는 사용자명 또는 이메일입니다."
 }
 ```
 
-### 로그인
+RESTful 특징:
+- 201 Created 상태 코드 반환
+- Location 헤더에 생성된 리소스 URL 포함 (`/api/auth/users/{id}`)
+- 클라이언트는 Location URL로 GET 요청하여 생성된 사용자 정보 조회 가능
+
+### 로그인 - 구현 완료
 ```
 POST /api/auth/login
 Request Body:
@@ -154,30 +195,42 @@ Request Body:
   "password": "string"
 }
 
-Response:
+Response (200 OK):
 {
-  "success": true,
   "accessToken": "eyJhbGc...",
   "refreshToken": "eyJhbGc...",
   "expiresIn": 3600
 }
-```
 
-### 자동 로그인 (토큰 검증)
-```
-POST /api/auth/verify
-Request Header:
-Authorization: Bearer {accessToken}
-
-Response:
+Response (401 Unauthorized):
 {
-  "success": true,
-  "userId": 12345,
-  "username": "user123"
+  "code": "LOGIN_FAILED",
+  "message": "비밀번호가 일치하지 않습니다. (남은 시도: 2회)"
 }
 ```
 
-### 토큰 갱신
+### 토큰 검증 - 구현 완료
+```
+GET /api/auth/verify
+Request Header:
+Authorization: Bearer {accessToken}
+
+Response (200 OK):
+{
+  "userId": "12345",
+  "username": "user123",
+  "email": "user@example.com",
+  "createdAt": "2025-01-15T10:30:00Z"
+}
+
+Response (401 Unauthorized):
+{
+  "code": "INVALID_TOKEN",
+  "message": "유효하지 않은 토큰입니다."
+}
+```
+
+### 토큰 갱신 - 구현 예정
 ```
 POST /api/auth/refresh
 Request Body:
@@ -185,30 +238,47 @@ Request Body:
   "refreshToken": "string"
 }
 
-Response:
+Response (200 OK):
 {
-  "success": true,
   "accessToken": "eyJhbGc...",
   "expiresIn": 3600
 }
+
+Response (401 Unauthorized):
+{
+  "code": "INVALID_REFRESH_TOKEN",
+  "message": "리프레시 토큰이 유효하지 않습니다."
+}
 ```
 
-### 로그아웃
+### 로그아웃 - 구현 완료
 ```
 POST /api/auth/logout
 Request Header:
 Authorization: Bearer {accessToken}
 
-Request Body:
+Response (200 OK):
 {
-  "refreshToken": "string"
+  "message": "로그아웃 성공"
 }
 
-Response:
+Response (401 Unauthorized):
 {
-  "success": true
+  "code": "INVALID_TOKEN",
+  "message": "유효하지 않은 토큰입니다."
 }
 ```
+
+### HTTP 상태 코드 사용 가이드
+
+| 상태 코드 | 의미 | 사용 예시 |
+|----------|------|----------|
+| 200 OK | 요청 성공 | 로그인, 토큰 검증, 로그아웃 |
+| 201 Created | 리소스 생성 성공 | 회원가입 |
+| 400 Bad Request | 잘못된 요청 | 유효성 검증 실패 |
+| 401 Unauthorized | 인증 실패 | 잘못된 비밀번호, 유효하지 않은 토큰 |
+| 404 Not Found | 리소스 없음 | 존재하지 않는 사용자 |
+| 500 Internal Server Error | 서버 오류 | 예상치 못한 에러 |
 
 ---
 
@@ -235,18 +305,23 @@ Response:
 
 ## 구현 우선순위
 
-### Phase 1: 핵심 기능 (필수)
-- [ ] MySQL 사용자 테이블 설계 및 구현
-- [ ] 비밀번호 해싱 (bcrypt)
-- [ ] 회원가입 API (옵션 1: 수동)
-- [ ] 로그인 API + JWT 발급
-- [ ] JWT Access Token + Refresh Token 구현
-- [ ] Redis 세션 저장
-- [ ] 로그아웃 API
+### Phase 1: 핵심 기능 (필수) - 완료
+- [x] MySQL 사용자 테이블 설계 및 구현
+- [x] 비밀번호 해싱 (SHA256, 1000 iterations)
+- [x] 회원가입 API (수동 방식)
+- [x] 로그인 API
+- [x] Redis 세션 저장
+- [x] 로그아웃 API
+- [x] 데이터베이스 자동 초기화
+- [x] RESTful API 설계 적용
+- [x] 사용자 조회 API (GET /api/auth/users/{id})
+- [x] Dependency Injection 구조
+- [x] Options 패턴 적용
+- [ ] JWT Access Token + Refresh Token 구현 (임시 토큰 사용 중)
 
-### Phase 2: 보안 강화 (권장)
-- [ ] 로그인 실패 횟수 제한
-- [ ] 계정 잠금 기능
+### Phase 2: 보안 강화 (권장) - 부분 완료
+- [x] 로그인 실패 횟수 제한 (3회)
+- [x] 계정 잠금 기능 (15분)
 - [ ] Rate Limiting
 - [ ] 토큰 블랙리스트
 - [ ] 중복 로그인 처리 정책
@@ -258,6 +333,30 @@ Response:
 - [ ] 비밀번호 재설정 기능
 - [ ] 소셜 로그인 연동
 - [ ] 다중 디바이스 세션 관리
+
+### 현재 구현 상태
+
+완료된 기능:
+- MySQL + Redis 기반 인증 서버 구조
+- RESTful API 설계 원칙 적용
+- 회원가입 (201 Created + Location 헤더)
+- 로그인 (Redis 세션 관리)
+- 로그아웃 (세션 무효화)
+- 토큰 검증
+- 사용자 조회 API
+- 계정 잠금 정책 (로그인 실패 3회 → 15분 잠금)
+- DB 자동 초기화 (테이블 생성 + 기본 관리자 계정)
+- Repository 패턴
+- Options 패턴을 통한 설정 관리
+
+진행 중:
+- JWT 토큰 (현재 임시 토큰 사용)
+- Refresh Token 갱신 로직
+
+계획 중:
+- Rate Limiting
+- 토큰 블랙리스트
+- 중복 로그인 처리
 
 ---
 
@@ -296,3 +395,105 @@ Response:
   "type": "access"
 }
 ```
+
+---
+
+## RESTful API 설계 상세
+
+### Location 헤더 사용 예시
+
+회원가입 성공 시:
+```http
+POST /api/auth/register HTTP/1.1
+Content-Type: application/json
+
+{
+  "username": "john_doe",
+  "email": "john@example.com",
+  "password": "password123"
+}
+
+↓
+
+HTTP/1.1 201 Created
+Location: https://localhost:5001/api/auth/users/123
+Content-Type: application/json
+
+{
+  "userId": 123,
+  "username": "john_doe",
+  "message": "회원가입 성공"
+}
+```
+
+클라이언트는 Location URL로 생성된 리소스 조회:
+```http
+GET /api/auth/users/123 HTTP/1.1
+
+↓
+
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "userId": "123",
+  "username": "john_doe",
+  "email": "john@example.com",
+  "createdAt": "2025-01-15T10:30:00Z"
+}
+```
+
+### 리소스 중심 URL 구조
+
+```
+/api/auth/users/{id}     → 사용자 리소스 (GET)
+/api/auth/register       → 사용자 생성 액션 (POST)
+/api/auth/login          → 인증 액션 (POST)
+/api/auth/logout         → 세션 종료 액션 (POST)
+/api/auth/verify         → 토큰 검증 액션 (GET)
+/api/auth/refresh        → 토큰 갱신 액션 (POST)
+```
+
+---
+
+## 프로젝트 구조
+
+```
+AuthServer/
+├── Controllers/           # API 컨트롤러
+│   ├── AuthController.cs    # 인증 API (RESTful)
+│   └── AdminController.cs   # 관리자 API
+├── Data/                  # 데이터 액세스 레이어
+│   ├── DbConnectionFactory.cs
+│   ├── DbInitializer.cs     # DB 초기화 (Main에서만 실행)
+│   ├── RedisConnectionFactory.cs
+│   └── Repositories/
+│       ├── MySQLWrapper.cs  # MySQL 쿼리 래퍼
+│       ├── UserRepository.cs
+│       └── IUserRepository.cs
+├── Models/                # 데이터 모델
+│   ├── User.cs
+│   └── AuthModels.cs
+├── Services/              # 비즈니스 로직
+│   ├── AuthService.cs
+│   └── IAuthService.cs
+├── Settings/              # 설정 클래스 (Options 패턴)
+│   ├── DatabaseSettings.cs
+│   ├── JwtSettings.cs
+│   ├── SecuritySettings.cs
+│   ├── SessionSettings.cs
+│   └── RateLimitSettings.cs
+├── docs/                  # 문서
+│   └── API.md            # API 상세 문서
+├── AUTH_SERVER_DESIGN.md  # 이 문서
+├── README.md             # 프로젝트 시작 가이드
+└── Program.cs            # 진입점 + DI 설정
+```
+
+---
+
+## 문서 링크
+
+- [API 문서](docs/API.md) - 전체 API 엔드포인트 상세 설명 및 사용 예시
+- [README.md](README.md) - 프로젝트 시작 가이드 및 설정 방법
+- [AUTH_SERVER_DESIGN.md](AUTH_SERVER_DESIGN.md) - 이 설계 문서

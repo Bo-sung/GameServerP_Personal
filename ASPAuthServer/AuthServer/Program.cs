@@ -1,51 +1,12 @@
 using AuthServer.Settings;
-using Microsoft.Extensions.Options;
-using System.ComponentModel.DataAnnotations;
+using AuthServer.Data;
+using AuthServer.Data.Repositories;
 
 namespace AuthServer
 {
-    public class DBManager
-    {
-        private readonly DatabaseSettings _dbSettings;
-        public DBManager(IOptions<DatabaseSettings> dbSettings)
-        {
-            _dbSettings = dbSettings.Value;
-        }
-        // DB 연결 및 관리 로직 구현
-
-        public class MySQL
-        {
-            public string MySQLConnection { get; set; } = string.Empty;
-
-            [Range(1, 100)]
-            public int MySQLConnectionPoolSize { get; set; } = 10;
-
-            public bool EnableConnectionRetry { get; set; } = true;
-
-            [Range(1, 10)]
-            public int MaxRetryAttempts { get; set; } = 3;
-
-            public MySQL(string connection, int poolSize, bool enableRetry, int maxRetries)
-            {
-                MySQLConnection = connection;
-                MySQLConnectionPoolSize = poolSize;
-                EnableConnectionRetry = enableRetry;
-                MaxRetryAttempts = maxRetries;
-            }
-
-            // MySQL 연결 및 관리 로직 구현
-
-            public bool TryConnect()
-            {
-                // MySQL 연결 로직
-
-                return false; // 연결 실패 시 false 반환
-            }
-        }
-    }
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
@@ -83,14 +44,50 @@ namespace AuthServer
                 .ValidateDataAnnotations()
                 .ValidateOnStart();
 
+            // DB 관련 서비스 등록
+            builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
+            builder.Services.AddScoped<IUserRepository, UserRepository>();
+
             var app = builder.Build();
+
+            // DB 초기화 (Main 함수에서만 실행)
+            await InitializeDatabaseAsync(app);
 
             // Controller 라우팅 활성화
             app.MapControllers();
 
-            app.MapGet("/", () => "Auth Server is running");
+            //app.MapGet("/", () => "Auth Server is running");
 
-            app.Run();
+            await app.RunAsync();
+        }
+
+        /// <summary>
+        /// DB 초기화 - Main 함수에서만 호출
+        /// </summary>
+        private static async Task InitializeDatabaseAsync(WebApplication app)
+        {
+            try
+            {
+                // DatabaseSettings에서 연결 문자열 가져오기
+                var dbSettings = app.Configuration.GetSection("DatabaseSettings").Get<DatabaseSettings>();
+
+                if (dbSettings == null || string.IsNullOrWhiteSpace(dbSettings.MySQLConnection))
+                {
+                    Console.WriteLine("[경고] DatabaseSettings가 설정되지 않았습니다. DB 초기화를 건너뜁니다.");
+                    return;
+                }
+
+                // DbInitializer는 DI에 등록되지 않음 - Main에서만 직접 생성
+                var initializer = new DbInitializer(dbSettings.MySQLConnection);
+                await initializer.InitializeAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DB 초기화 오류] {ex.Message}");
+                Console.WriteLine("[경고] DB 초기화에 실패했지만 서버는 계속 실행됩니다.");
+                Console.WriteLine($"상세 오류: {ex}");
+                // DB 초기화 실패 시에도 서버는 시작되도록 예외를 throw하지 않음
+            }
         }
     }
 }
