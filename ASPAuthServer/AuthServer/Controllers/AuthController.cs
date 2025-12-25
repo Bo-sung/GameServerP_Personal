@@ -2,8 +2,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using AuthServer.Models;
 using AuthServer.Settings;
-using AuthServer.Services;
+using AuthServer.Services.Auth;
 using AuthServer.Data.Repositories;
+using Microsoft.VisualBasic;
 
 namespace AuthServer.Controllers
 {
@@ -112,6 +113,12 @@ namespace AuthServer.Controllers
             // TODO: 토큰 갱신 로직 구현
             // 1. Refresh Token 검증
             // 2. 새 Access Token 발급
+
+            bool result = await _authService.ValidateTokenAsync(request.RefreshToken);
+            if(!result)
+            {
+                return Unauthorized(new ErrorResponse("INVALID_REFRESH_TOKEN", "유효하지 않은 리프레시 토큰입니다."));
+            }
 
             return Ok(new
             {

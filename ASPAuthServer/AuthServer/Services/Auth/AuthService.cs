@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace AuthServer.Services
+namespace AuthServer.Services.Auth
 {
     public class AuthService : IAuthService
     {

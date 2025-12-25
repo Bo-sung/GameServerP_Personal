@@ -1,6 +1,6 @@
 using AuthServer.Models;
 
-namespace AuthServer.Services
+namespace AuthServer.Services.Auth
 {
     public interface IAuthService
     {
