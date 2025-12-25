@@ -5,6 +5,7 @@ using AuthServer.Settings;
 using AuthServer.Services.Auth;
 using AuthServer.Data.Repositories;
 using Microsoft.VisualBasic;
+using AuthServer.Services.Tokens;
 
 namespace AuthServer.Controllers
 {
@@ -12,6 +13,7 @@ namespace AuthServer.Controllers
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
+        private readonly ITokenService _tokenService;
         private readonly IAuthService _authService;
         private readonly IUserRepository _userRepository;
         private readonly IOptionsSnapshot<JwtSettings> _jwtSettings;
@@ -21,12 +23,14 @@ namespace AuthServer.Controllers
             IAuthService authService,
             IUserRepository userRepository,
             IOptionsSnapshot<JwtSettings> jwtSettings,
-            ILogger<AuthController> logger)
+            ILogger<AuthController> logger,
+            ITokenService tokenService)
         {
             _authService = authService;
             _userRepository = userRepository;
             _jwtSettings = jwtSettings;
             _logger = logger;
+            _tokenService = tokenService;
         }
 
         // GET: api/auth/users/{id}
@@ -87,7 +91,8 @@ namespace AuthServer.Controllers
 
             var (success, token, message, user) = await _authService.LoginAsync(
                 request.Username,
-                request.Password
+                request.Password,
+                request.DeviceId
             );
 
             if (!success)
@@ -110,16 +115,15 @@ namespace AuthServer.Controllers
         {
             _logger.LogInformation("Token refresh request");
 
-            // TODO: 토큰 갱신 로직 구현
-            // 1. Refresh Token 검증
-            // 2. 새 Access Token 발급
-
-            bool result = await _authService.ValidateTokenAsync(request.RefreshToken);
+            bool result = await _tokenService.ValidateTokenAsync(request.RefreshToken, ITokenService.TokenType.Refresh);
             if(!result)
             {
                 return Unauthorized(new ErrorResponse("INVALID_REFRESH_TOKEN", "유효하지 않은 리프레시 토큰입니다."));
             }
-
+            // 리프레시 토큰 폐기
+            await _tokenService.RevokeTokenAsync(request.RefreshToken, ITokenService.TokenType.Refresh);
+            // 새로운 액세스 토큰 및 리프레시 토큰 발급
+            // TODO: 사용자 정보 조회 후 토큰 생성
             return Ok(new
             {
                 message = "Refresh endpoint ready"

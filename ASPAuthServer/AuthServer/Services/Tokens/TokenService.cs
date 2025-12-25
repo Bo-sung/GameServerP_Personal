@@ -114,6 +114,90 @@ namespace AuthServer.Services.Tokens
             return false;
         }
 
+        public async Task<bool> ValidateTokenAsync(string token)
+        {
+            // Parse and validate JWT token
+            var parseResult = JwtHelper.ParseToken(token, _jwtSettings);
+            if (!parseResult.IsValid || parseResult.Principal == null)
+            {
+                Console.WriteLine($"[TokenService] Token parse failed: {parseResult.ErrorMessage}");
+                return false;
+            }
+
+            Claim? claim_type = parseResult.Principal.FindFirst("type");
+            if (claim_type == null)
+            {
+                Console.WriteLine($"[TokenService] Token type mismatch for access token.");
+                return false;
+            }
+
+            switch (claim_type.Value)
+            {
+                case "access":
+                    {
+                        // Access tokens are stateless; if parsing succeeded, it's valid
+                    }
+                    break;
+                case "login":
+                    {
+                        Claim? claim_jti = parseResult.Principal.FindFirst(JwtRegisteredClaimNames.Jti);
+                        if (claim_jti == null)
+                        {
+                            Console.WriteLine($"[TokenService] JTI claim not found in login token.");
+                            return false;
+                        }
+                        string jti = claim_jti.Value;
+                        var redis = _redisFactory.GetDatabase();
+
+                        string usedKey = LogintToken.BuildUsedRedisKey(jti);
+                        if (await redis.KeyExistsAsync(usedKey))
+                        {
+                            Console.WriteLine($"[TokenService] WARNING: Login token reuse attempt detected! JTI: {jti}");
+                            Console.WriteLine($"[TokenService] This token was already exchanged. Possible token theft!");
+                            return false;
+                        }
+
+                        string activeKey = LogintToken.BuildActiveRedisKey(jti);
+                        if (!await redis.KeyExistsAsync(activeKey))
+                        {
+                            Console.WriteLine($"[TokenService] Login token not found in active tokens. JTI: {jti}");
+                            return false;
+                        }
+                    }
+                    break;
+                case "refresh":
+                    {
+                        Claim? claim_userId = parseResult.Principal.FindFirst("userId");
+                        if (claim_userId == null || !int.TryParse(claim_userId.Value, out int userId))
+                        {
+                            Console.WriteLine($"[TokenService] userId claim not found in refresh token.");
+                            return false;
+                        }
+                        Claim? claim_deviceId = parseResult.Principal.FindFirst("deviceId");
+                        if (claim_deviceId == null)
+                        {
+                            Console.WriteLine($"[TokenService] deviceId claim not found in refresh token.");
+                            return false;
+                        }
+                        string deviceId = claim_deviceId.Value;
+
+                        // Get Redis connection
+                        var redis = _redisFactory.GetDatabase();
+
+                        string redisKey = RefreshToken.BuildRedisKey(userId, deviceId);
+
+                        // 레디스에 토큰이 존재하는지 확인
+                        if (!await redis.KeyExistsAsync(redisKey))
+                        {
+                            Console.WriteLine($"[TokenService] Refresh token not found in Redis.");
+                            return false;
+                        }
+                    }
+                    break;
+            }
+            return true;
+        }
+
         public async Task<bool> ValidateTokenAsync(string token, ITokenService.TokenType type)
         {
             // Parse and validate JWT token

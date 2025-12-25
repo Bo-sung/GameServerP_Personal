@@ -3,7 +3,7 @@ namespace AuthServer.Models
     // Request 모델들
     public record RegisterRequest(string Username, string Password, string? Email = null);
 
-    public record LoginRequest(string Username, string Password);
+    public record LoginRequest(string Username, string Password, string DeviceId);
 
     public record RefreshTokenRequest(string RefreshToken);
 

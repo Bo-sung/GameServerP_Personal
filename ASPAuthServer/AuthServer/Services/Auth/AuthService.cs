@@ -1,6 +1,7 @@
-using AuthServer.Data.Repositories;
 using AuthServer.Data;
+using AuthServer.Data.Repositories;
 using AuthServer.Models;
+using AuthServer.Services.Tokens;
 using AuthServer.Settings;
 using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
@@ -10,6 +11,7 @@ namespace AuthServer.Services.Auth
 {
     public class AuthService : IAuthService
     {
+        private readonly ITokenService _tokenService;
         private readonly IUserRepository _userRepository;
         private readonly IRedisConnectionFactory _redisFactory;
         private readonly SecuritySettings _securitySettings;
@@ -17,14 +19,16 @@ namespace AuthServer.Services.Auth
         public AuthService(
             IUserRepository userRepository,
             IRedisConnectionFactory redisFactory,
-            IOptions<SecuritySettings> securitySettings)
+            IOptions<SecuritySettings> securitySettings,
+            ITokenService tokenService)
         {
             _userRepository = userRepository;
             _redisFactory = redisFactory;
             _securitySettings = securitySettings.Value;
+            _tokenService = tokenService;
         }
 
-        public async Task<(bool Success, string? Token, string? Message, User? User)> LoginAsync(string username, string password)
+        public async Task<(bool Success, string? Token, string? Message, User? User)> LoginAsync(string username, string password, string deviceId)
         {
             var user = await _userRepository.GetByUsernameAsync(username);
             if (user == null)
@@ -61,15 +65,15 @@ namespace AuthServer.Services.Auth
             user.LastLoginAt = DateTime.UtcNow;
             await _userRepository.UpdateAsync(user);
 
-            // 토큰 생성 (임시로 간단한 토큰, 실제로는 JWT 사용)
-            var token = GenerateToken(user);
+            // 토큰 생성
+            string? loginToken = await _tokenService.CreateToken(ITokenService.TokenType.Login, user.Id, deviceId);
 
-            // Redis에 세션 저장
-            var redis = _redisFactory.GetDatabase();
-            await redis.StringSetAsync($"session:{user.Id}", token, TimeSpan.FromHours(1));
-            await redis.StringSetAsync($"token:{token}", user.Id.ToString(), TimeSpan.FromHours(1));
+            if (loginToken == null)
+            {
+                return (false, null, "토큰 생성에 실패했습니다.", null);
+            }
 
-            return (true, token, "로그인 성공", user);
+            return (true, loginToken, "로그인 성공", user);
         }
 
         public async Task<(bool Success, int? UserId, string? Message)> RegisterAsync(string username, string email, string password)
@@ -100,17 +104,6 @@ namespace AuthServer.Services.Auth
         {
             var redis = _redisFactory.GetDatabase();
 
-            // 세션에서 토큰 가져오기
-            var token = await redis.StringGetAsync($"session:{userId}");
-
-            // 토큰과 세션 모두 삭제
-            var tasks = new List<Task<bool>>
-            {
-                redis.KeyDeleteAsync($"session:{userId}"),
-                redis.KeyDeleteAsync($"token:{token}")
-            };
-
-            await Task.WhenAll(tasks);
             return true;
         }
 
@@ -130,10 +123,9 @@ namespace AuthServer.Services.Auth
             return null;
         }
 
-        public async Task<bool> ValidateTokenAsync(string token)
+        public async Task<bool> ValidateTokenAsync(string token, ITokenService.TokenType type)
         {
-            var redis = _redisFactory.GetDatabase();
-            return await redis.KeyExistsAsync($"token:{token}");
+            return await _tokenService.ValidateTokenAsync(token, type);
         }
 
         private string HashPassword(string password)
@@ -149,16 +141,6 @@ namespace AuthServer.Services.Auth
             }
 
             return Convert.ToBase64String(bytes);
-        }
-
-        private string GenerateToken(User user)
-        {
-            // 임시 토큰 생성 (실제로는 JWT 사용)
-            var randomBytes = new byte[32];
-            using var rng = RandomNumberGenerator.Create();
-            rng.GetBytes(randomBytes);
-
-            return $"token_{user.Id}_{Convert.ToBase64String(randomBytes)}";
         }
     }
 }
