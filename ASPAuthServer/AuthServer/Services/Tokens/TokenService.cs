@@ -1,4 +1,4 @@
-using AuthServer.Data;
+﻿using AuthServer.Data;
 using AuthServer.Data.Repositories;
 using AuthServer.Models;
 using AuthServer.Settings;
@@ -8,6 +8,9 @@ using System.Security.Claims;
 
 namespace AuthServer.Services.Tokens
 {
+    /// <summary>
+    /// 토큰 생성, 검증, 폐기를 담당하는 서비스
+    /// </summary>
     public class TokenService : ITokenService
     {
         private readonly TokenFactory tokenFactory;
@@ -24,6 +27,9 @@ namespace AuthServer.Services.Tokens
             this.tokenFactory = new TokenFactory(jwtSettings);
         }
 
+        /// <summary>
+        /// 토큰 생성 (타입에 따라 Login/Access/Refresh 토큰 생성)
+        /// </summary>
         public async Task<string?> CreateToken(ITokenService.TokenType type, int user_id, string deviceId)
         {
             IToken token = type switch
@@ -37,7 +43,7 @@ namespace AuthServer.Services.Tokens
             if (token == null)
                 return null;
 
-            // Access token is stateless and not stored in Redis
+            // Access 토큰은 상태가 없으므로 Redis에 저장하지 않음
             if (type == ITokenService.TokenType.Access)
                 return token.GetTokenString();
 
@@ -47,13 +53,16 @@ namespace AuthServer.Services.Tokens
             return token.GetTokenString();
         }
 
+        /// <summary>
+        /// 토큰 폐기 (Redis에서 토큰 삭제)
+        /// </summary>
         public async Task<bool> RevokeTokenAsync(string token, ITokenService.TokenType type)
         {
-            // Parse and validate token
+            // 토큰 파싱 및 검증
             var parseResult = JwtHelper.ParseToken(token, _jwtSettings);
             if (!parseResult.IsValid || parseResult.Principal == null)
             {
-                Console.WriteLine($"[TokenService] Token parse failed: {parseResult.ErrorMessage}");
+                Console.WriteLine($"[TokenService] 토큰 파싱 실패: {parseResult.ErrorMessage}");
                 return false;
             }
 
@@ -61,7 +70,7 @@ namespace AuthServer.Services.Tokens
             {
                 case ITokenService.TokenType.Access:
                     {
-                        // Access token is not stored in Redis, no revoke action needed
+                        // Access 토큰은 Redis에 저장되지 않으므로 폐기 작업 불필요
                         break;
                     }
                 case ITokenService.TokenType.Login:
@@ -69,13 +78,13 @@ namespace AuthServer.Services.Tokens
                         Claim? claim_type = parseResult.Principal.FindFirst("type");
                         if (claim_type == null || claim_type.Value != "login")
                         {
-                            Console.WriteLine($"[TokenService] Token type mismatch for login token.");
+                            Console.WriteLine($"[TokenService] 로그인 토큰의 타입 불일치");
                             return false;
                         }
                         Claim? claim_jti = parseResult.Principal.FindFirst(JwtRegisteredClaimNames.Jti);
                         if (claim_jti == null)
                         {
-                            Console.WriteLine($"[TokenService] JTI claim not found in login token.");
+                            Console.WriteLine($"[TokenService] 로그인 토큰에서 JTI claim을 찾을 수 없음");
                             return false;
                         }
                         string jti = claim_jti.Value;
@@ -88,19 +97,19 @@ namespace AuthServer.Services.Tokens
                         Claim? claim_type = parseResult.Principal.FindFirst("type");
                         if (claim_type == null || claim_type.Value != "refresh")
                         {
-                            Console.WriteLine($"[TokenService] Token type mismatch for refresh token.");
+                            Console.WriteLine($"[TokenService] 리프레시 토큰의 타입 불일치");
                             return false;
                         }
                         Claim? claim_userId = parseResult.Principal.FindFirst("userId");
                         if (claim_userId == null || !int.TryParse(claim_userId.Value, out int userId))
                         {
-                            Console.WriteLine($"[TokenService] JTI claim not found in refresh token.");
+                            Console.WriteLine($"[TokenService] 리프레시 토큰에서 userId claim을 찾을 수 없음");
                             return false;
                         }
                         Claim? claim_deviceId = parseResult.Principal.FindFirst("deviceId");
                         if (claim_deviceId == null)
                         {
-                            Console.WriteLine($"[TokenService] JTI claim not found in refresh token.");
+                            Console.WriteLine($"[TokenService] 리프레시 토큰에서 deviceId claim을 찾을 수 없음");
                             return false;
                         }
                         string deviceId = claim_deviceId.Value;
@@ -109,25 +118,28 @@ namespace AuthServer.Services.Tokens
                         return true;
                     }
                 default:
-                    throw new ArgumentOutOfRangeException(nameof(type), "Invalid token type");
+                    throw new ArgumentOutOfRangeException(nameof(type), "잘못된 토큰 타입");
             }
             return false;
         }
 
+        /// <summary>
+        /// 토큰 검증 (타입 자동 감지)
+        /// </summary>
         public async Task<bool> ValidateTokenAsync(string token)
         {
-            // Parse and validate JWT token
+            // JWT 토큰 파싱 및 검증
             var parseResult = JwtHelper.ParseToken(token, _jwtSettings);
             if (!parseResult.IsValid || parseResult.Principal == null)
             {
-                Console.WriteLine($"[TokenService] Token parse failed: {parseResult.ErrorMessage}");
+                Console.WriteLine($"[TokenService] 토큰 파싱 실패: {parseResult.ErrorMessage}");
                 return false;
             }
 
             Claim? claim_type = parseResult.Principal.FindFirst("type");
             if (claim_type == null)
             {
-                Console.WriteLine($"[TokenService] Token type mismatch for access token.");
+                Console.WriteLine($"[TokenService] 토큰 타입 claim을 찾을 수 없음");
                 return false;
             }
 
@@ -135,7 +147,7 @@ namespace AuthServer.Services.Tokens
             {
                 case "access":
                     {
-                        // Access tokens are stateless; if parsing succeeded, it's valid
+                        // Access 토큰은 상태가 없으므로 파싱 성공 시 유효함
                     }
                     break;
                 case "login":
@@ -143,7 +155,7 @@ namespace AuthServer.Services.Tokens
                         Claim? claim_jti = parseResult.Principal.FindFirst(JwtRegisteredClaimNames.Jti);
                         if (claim_jti == null)
                         {
-                            Console.WriteLine($"[TokenService] JTI claim not found in login token.");
+                            Console.WriteLine($"[TokenService] 로그인 토큰에서 JTI claim을 찾을 수 없음");
                             return false;
                         }
                         string jti = claim_jti.Value;
@@ -152,15 +164,15 @@ namespace AuthServer.Services.Tokens
                         string usedKey = LogintToken.BuildUsedRedisKey(jti);
                         if (await redis.KeyExistsAsync(usedKey))
                         {
-                            Console.WriteLine($"[TokenService] WARNING: Login token reuse attempt detected! JTI: {jti}");
-                            Console.WriteLine($"[TokenService] This token was already exchanged. Possible token theft!");
+                            Console.WriteLine($"[TokenService] 경고: 로그인 토큰 재사용 시도 감지! JTI: {jti}");
+                            Console.WriteLine($"[TokenService] 이미 교환된 토큰입니다. 토큰 탈취 가능성!");
                             return false;
                         }
 
                         string activeKey = LogintToken.BuildActiveRedisKey(jti);
                         if (!await redis.KeyExistsAsync(activeKey))
                         {
-                            Console.WriteLine($"[TokenService] Login token not found in active tokens. JTI: {jti}");
+                            Console.WriteLine($"[TokenService] 활성 토큰 목록에서 로그인 토큰을 찾을 수 없음. JTI: {jti}");
                             return false;
                         }
                     }
@@ -170,26 +182,26 @@ namespace AuthServer.Services.Tokens
                         Claim? claim_userId = parseResult.Principal.FindFirst("userId");
                         if (claim_userId == null || !int.TryParse(claim_userId.Value, out int userId))
                         {
-                            Console.WriteLine($"[TokenService] userId claim not found in refresh token.");
+                            Console.WriteLine($"[TokenService] 리프레시 토큰에서 userId claim을 찾을 수 없음");
                             return false;
                         }
                         Claim? claim_deviceId = parseResult.Principal.FindFirst("deviceId");
                         if (claim_deviceId == null)
                         {
-                            Console.WriteLine($"[TokenService] deviceId claim not found in refresh token.");
+                            Console.WriteLine($"[TokenService] 리프레시 토큰에서 deviceId claim을 찾을 수 없음");
                             return false;
                         }
                         string deviceId = claim_deviceId.Value;
 
-                        // Get Redis connection
+                        // Redis 연결 가져오기
                         var redis = _redisFactory.GetDatabase();
 
                         string redisKey = RefreshToken.BuildRedisKey(userId, deviceId);
 
-                        // ���𽺿� ��ū�� �����ϴ��� Ȯ��
+                        // 레디스에 토큰이 존재하는지 확인
                         if (!await redis.KeyExistsAsync(redisKey))
                         {
-                            Console.WriteLine($"[TokenService] Refresh token not found in Redis.");
+                            Console.WriteLine($"[TokenService] Redis에서 리프레시 토큰을 찾을 수 없음");
                             return false;
                         }
                     }
@@ -198,13 +210,16 @@ namespace AuthServer.Services.Tokens
             return true;
         }
 
+        /// <summary>
+        /// 토큰 검증 (타입 명시)
+        /// </summary>
         public async Task<bool> ValidateTokenAsync(string token, ITokenService.TokenType type)
         {
-            // Parse and validate JWT token
+            // JWT 토큰 파싱 및 검증
             var parseResult = JwtHelper.ParseToken(token, _jwtSettings);
             if (!parseResult.IsValid || parseResult.Principal == null)
             {
-                Console.WriteLine($"[TokenService] Token parse failed: {parseResult.ErrorMessage}");
+                Console.WriteLine($"[TokenService] 토큰 파싱 실패: {parseResult.ErrorMessage}");
                 return false;
             }
             switch (type)
@@ -214,7 +229,7 @@ namespace AuthServer.Services.Tokens
                         Claim? claim_type = parseResult.Principal.FindFirst("type");
                         if (claim_type == null || claim_type.Value != "access")
                         {
-                            Console.WriteLine($"[TokenService] Token type mismatch for access token.");
+                            Console.WriteLine($"[TokenService] Access 토큰의 타입 불일치");
                             return false;
                         }
                     }
@@ -224,13 +239,13 @@ namespace AuthServer.Services.Tokens
                         Claim? claim_type = parseResult.Principal.FindFirst("type");
                         if (claim_type == null || claim_type.Value != "login")
                         {
-                            Console.WriteLine($"[TokenService] Token type mismatch for login token.");
+                            Console.WriteLine($"[TokenService] 로그인 토큰의 타입 불일치");
                             return false;
                         }
                         Claim? claim_jti = parseResult.Principal.FindFirst(JwtRegisteredClaimNames.Jti);
                         if (claim_jti == null)
                         {
-                            Console.WriteLine($"[TokenService] JTI claim not found in login token.");
+                            Console.WriteLine($"[TokenService] 로그인 토큰에서 JTI claim을 찾을 수 없음");
                             return false;
                         }
                         string jti = claim_jti.Value;
@@ -239,15 +254,15 @@ namespace AuthServer.Services.Tokens
                         string usedKey = LogintToken.BuildUsedRedisKey(jti);
                         if (await redis.KeyExistsAsync(usedKey))
                         {
-                            Console.WriteLine($"[TokenService] WARNING: Login token reuse attempt detected! JTI: {jti}");
-                            Console.WriteLine($"[TokenService] This token was already exchanged. Possible token theft!");
+                            Console.WriteLine($"[TokenService] 경고: 로그인 토큰 재사용 시도 감지! JTI: {jti}");
+                            Console.WriteLine($"[TokenService] 이미 교환된 토큰입니다. 토큰 탈취 가능성!");
                             return false;
                         }
 
                         string activeKey = LogintToken.BuildActiveRedisKey(jti);
                         if (!await redis.KeyExistsAsync(activeKey))
                         {
-                            Console.WriteLine($"[TokenService] Login token not found in active tokens. JTI: {jti}");
+                            Console.WriteLine($"[TokenService] 활성 토큰 목록에서 로그인 토큰을 찾을 수 없음. JTI: {jti}");
                             return false;
                         }
                     }
@@ -257,32 +272,32 @@ namespace AuthServer.Services.Tokens
                         Claim? claim_type = parseResult.Principal.FindFirst("type");
                         if (claim_type == null || claim_type.Value != "refresh")
                         {
-                            Console.WriteLine($"[TokenService] Token type mismatch for refresh token.");
+                            Console.WriteLine($"[TokenService] 리프레시 토큰의 타입 불일치");
                             return false;
                         }
                         Claim? claim_userId = parseResult.Principal.FindFirst("userId");
                         if (claim_userId == null || !int.TryParse(claim_userId.Value, out int userId))
                         {
-                            Console.WriteLine($"[TokenService] userId claim not found in refresh token.");
+                            Console.WriteLine($"[TokenService] 리프레시 토큰에서 userId claim을 찾을 수 없음");
                             return false;
                         }
                         Claim? claim_deviceId = parseResult.Principal.FindFirst("deviceId");
                         if (claim_deviceId == null)
                         {
-                            Console.WriteLine($"[TokenService] deviceId claim not found in refresh token.");
+                            Console.WriteLine($"[TokenService] 리프레시 토큰에서 deviceId claim을 찾을 수 없음");
                             return false;
                         }
                         string deviceId = claim_deviceId.Value;
 
-                        // Get Redis connection
+                        // Redis 연결 가져오기
                         var redis = _redisFactory.GetDatabase();
 
                         string redisKey = RefreshToken.BuildRedisKey(userId, deviceId);
 
-                        // ���𽺿� ��ū�� �����ϴ��� Ȯ��
+                        // 레디스에 토큰이 존재하는지 확인
                         if (!await redis.KeyExistsAsync(redisKey))
                         {
-                            Console.WriteLine($"[TokenService] Refresh token not found in Redis.");
+                            Console.WriteLine($"[TokenService] Redis에서 리프레시 토큰을 찾을 수 없음");
                             return false;
                         }
                     }break;
@@ -290,26 +305,29 @@ namespace AuthServer.Services.Tokens
             return true;
         }
 
+        /// <summary>
+        /// 로그인 토큰을 사용됨으로 표시 (1회용 토큰 방지)
+        /// </summary>
         public async Task<bool> MarkLoginTokenAsUsedAsync(string token)
         {
             var parseResult = JwtHelper.ParseToken(token, _jwtSettings);
             if (!parseResult.IsValid || parseResult.Principal == null)
             {
-                Console.WriteLine($"[TokenService] Token parse failed: {parseResult.ErrorMessage}");
+                Console.WriteLine($"[TokenService] 토큰 파싱 실패: {parseResult.ErrorMessage}");
                 return false;
             }
 
             Claim? claim_type = parseResult.Principal.FindFirst("type");
             if (claim_type == null || claim_type.Value != "login")
             {
-                Console.WriteLine($"[TokenService] Token type mismatch. Expected 'login' token.");
+                Console.WriteLine($"[TokenService] 토큰 타입 불일치. 'login' 토큰이 필요함");
                 return false;
             }
 
             Claim? claim_jti = parseResult.Principal.FindFirst(JwtRegisteredClaimNames.Jti);
             if (claim_jti == null)
             {
-                Console.WriteLine($"[TokenService] JTI claim not found in login token.");
+                Console.WriteLine($"[TokenService] 로그인 토큰에서 JTI claim을 찾을 수 없음");
                 return false;
             }
             string jti = claim_jti.Value;
@@ -321,7 +339,7 @@ namespace AuthServer.Services.Tokens
 
             if (!wasActive)
             {
-                Console.WriteLine($"[TokenService] Login token was not in active list. JTI: {jti}");
+                Console.WriteLine($"[TokenService] 활성 목록에 로그인 토큰이 없음. JTI: {jti}");
                 return false;
             }
 
@@ -336,7 +354,7 @@ namespace AuthServer.Services.Tokens
             var retentionTime = TimeSpan.FromHours(_jwtSettings.UsedLoginTokenRetentionHours);
             await redis.StringSetAsync(usedKey, usedValue, retentionTime);
 
-            Console.WriteLine($"[TokenService] Login token marked as used. JTI: {jti}, Retention: {_jwtSettings.UsedLoginTokenRetentionHours}h");
+            Console.WriteLine($"[TokenService] 로그인 토큰을 사용됨으로 표시. JTI: {jti}, 보관시간: {_jwtSettings.UsedLoginTokenRetentionHours}시간");
             return true;
         }
     }

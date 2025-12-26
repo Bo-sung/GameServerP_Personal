@@ -1,4 +1,4 @@
-using MySql.Data.MySqlClient;
+ï»¿using MySql.Data.MySqlClient;
 using System.Reflection;
 
 namespace AuthServer.Data.Repositories
@@ -13,7 +13,7 @@ namespace AuthServer.Data.Repositories
         }
 
         /// <summary>
-        /// Äõ¸® ¹ß¼Û. (SELECT ... LIMIT 1)
+        /// ë‹¨ê±´ ì¡°íšŒ. (SELECT ... LIMIT 1)
         /// </summary>
         /// <param name="sql"></param>
         /// <param name="parameters"></param>
@@ -36,7 +36,7 @@ namespace AuthServer.Data.Repositories
         }
 
         /// <summary>
-        /// Äõ¸® ¹ß¼Û. (SELECT ...)
+        /// ëª©ë¡ ì¡°íšŒ. (SELECT ...)
         /// </summary>
         /// <param name="sql"></param>
         /// <param name="parameters"></param>
@@ -61,7 +61,7 @@ namespace AuthServer.Data.Repositories
         }
 
         /// <summary>
-        /// Äõ¸® ½ÇÇà (INSERT, UPDATE, DELETE)
+        /// ì¿¼ë¦¬ ì‹¤í–‰ (INSERT, UPDATE, DELETE)
         /// </summary>
         /// <param name="sql"></param>
         /// <param name="parameters"></param>
@@ -78,7 +78,7 @@ namespace AuthServer.Data.Repositories
         }
 
         /// <summary>
-        /// ´ÜÀÏ °ª ¹İÈ¯¿ë Äõ¸® ½ÇÇà.
+        /// ë‹¨ì¼ ê°’ ë°˜í™˜ì‹œ ì‚¬ìš© ë©”ì„œë“œ.
         /// </summary>
         /// <typeparam name="TResult"></typeparam>
         /// <param name="sql"></param>
@@ -122,7 +122,7 @@ namespace AuthServer.Data.Repositories
                     var value = reader.GetValue(i);
                     if (value != DBNull.Value)
                     {
-                        // Nullable Å¸ÀÔ Ã³¸®
+                        // Nullable íƒ€ì… ì²˜ë¦¬
                         var propertyType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
                         property.SetValue(obj, Convert.ChangeType(value, propertyType));
                     }
