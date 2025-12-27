@@ -5,12 +5,16 @@ namespace AuthServer.Models
 
     public record LoginRequest(string Username, string Password, string DeviceId);
 
-    public record RefreshTokenRequest(string RefreshToken);
+    public record RefreshTokenRequest(string RefreshToken, string DeviceId);
 
     public record ChangePasswordRequest(string OldPassword, string NewPassword);
 
+    public record ExchangeRequest(string LoginToken, string DeviceId);
+
+    public record LogoutRequest(string DeviceId);
+
     // Response 모델들
-    public record AuthResponse(string AccessToken, string RefreshToken, int ExpiresIn, string TokenType = "Bearer");
+    public record AuthResponse(string LoginToken, int ExpiresIn, string TokenType = "Bearer");
 
     public record ErrorResponse(string ErrorCode, string Message, object? Details = null);
 

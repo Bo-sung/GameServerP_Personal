@@ -4,7 +4,6 @@ using AuthServer.Models;
 using AuthServer.Settings;
 using AuthServer.Services.Auth;
 using AuthServer.Data.Repositories;
-using Microsoft.VisualBasic;
 using AuthServer.Services.Tokens;
 
 namespace AuthServer.Controllers
@@ -33,26 +32,6 @@ namespace AuthServer.Controllers
             _tokenService = tokenService;
         }
 
-        // GET: api/auth/users/{id}
-        [HttpGet("users/{id}")]
-        public async Task<IActionResult> GetUserById(int id)
-        {
-            _logger.LogInformation("Get user by id: {UserId}", id);
-
-            var user = await _userRepository.GetByIdAsync(id);
-            if (user == null)
-            {
-                return NotFound(new ErrorResponse("USER_NOT_FOUND", "사용자를 찾을 수 없습니다."));
-            }
-
-            return Ok(new UserInfoResponse(
-                UserId: user.Id.ToString(),
-                Username: user.Username,
-                Email: user.Email,
-                CreatedAt: user.CreatedAt
-            ));
-        }
-
         // POST: api/auth/register
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterRequest request)
@@ -70,10 +49,7 @@ namespace AuthServer.Controllers
                 return BadRequest(new ErrorResponse("REGISTER_FAILED", message ?? "회원가입 실패"));
             }
 
-            // RESTful: 생성된 리소스 조회 URL을 Location 헤더에 포함
-            return CreatedAtAction(
-                nameof(GetUserById),
-                new { id = userId },
+            return Ok(
                 new
                 {
                     userId,
@@ -102,85 +78,114 @@ namespace AuthServer.Controllers
 
             var gameSettings = _jwtSettings.Get("Game");
 
-            return Ok(new AuthResponse(
-                AccessToken: token!,
-                RefreshToken: token!,
-                ExpiresIn: gameSettings.AccessTokenExpirationMinutes * 60
-            ));
+            return Ok(new
+            {
+                token
+            });
+        }
+
+        // POST: api/auth/exchange
+        [HttpPost("exchange")]
+        public async Task<IActionResult> ExchangeToken([FromBody] ExchangeRequest request)
+        {
+            _logger.LogInformation("Exchange Requested {token} ", request.LoginToken);
+
+            if (!await _tokenService.ValidateTokenAsync(request.LoginToken, request.DeviceId, ITokenService.TokenType.Login))
+            {
+                // 로그인 토큰이 유효하지 않음
+                return Unauthorized(new ErrorResponse("INVALID_LOGIN_TOKEN", "유효하지 않은 로그인 토큰입니다."));
+            }
+
+            // 새 액세스 토큰 발급
+            var result = await _tokenService.ExchangeTokensAsync(request.LoginToken);
+
+            if (result.AccessToken == null || result.RefreshToken == null)
+            {
+                return Unauthorized(new ErrorResponse("TOKEN_EXCHANGE_FAILED", "토큰 교환 실패"));
+            }
+
+            return Ok( new
+            {
+                AccessToken = result.AccessToken,
+                RefreshToken = result.RefreshToken
+            });
         }
 
         // POST: api/auth/refresh
         [HttpPost("refresh")]
         public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
         {
+            // 리프레시 토큰 받아 검증 후 새 AT 발급.
             _logger.LogInformation("Token refresh request");
 
-            bool result = await _tokenService.ValidateTokenAsync(request.RefreshToken, ITokenService.TokenType.Refresh);
+            bool result = await _tokenService.ValidateTokenAsync(request.RefreshToken, request.DeviceId, ITokenService.TokenType.Refresh);
             if(!result)
             {
                 return Unauthorized(new ErrorResponse("INVALID_REFRESH_TOKEN", "유효하지 않은 리프레시 토큰입니다."));
             }
-            // 리프레시 토큰 폐기
-            await _tokenService.RevokeTokenAsync(request.RefreshToken, ITokenService.TokenType.Refresh);
-            // 새로운 액세스 토큰 및 리프레시 토큰 발급
-            // TODO: 사용자 정보 조회 후 토큰 생성
+
+            // 토큰 갱신 처리
+            string? token = await _tokenService.RefreshRT(request.RefreshToken);
+
+            if (string.IsNullOrEmpty(token))
+            {
+                return Unauthorized(new ErrorResponse("TOKEN_REFRESH_FAILED", "토큰 갱신에 실패했습니다."));
+            }
+
             return Ok(new
             {
-                message = "Refresh endpoint ready"
+                message = "Token Refreshed",
+                token
             });
         }
 
         // POST: api/auth/logout
         [HttpPost("logout")]
-        public async Task<IActionResult> Logout()
+        public async Task<IActionResult> Logout([FromBody] LogoutRequest request)
         {
-            _logger.LogInformation("Logout request");
+            _logger.LogInformation("Logout request for DeviceId: {DeviceId}", request.DeviceId);
 
-            // Authorization 헤더에서 토큰 추출
-            var token = Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
-
-            if (string.IsNullOrEmpty(token))
+            // Authorization 헤더에서 Access Token 추출
+            var authHeader = Request.Headers["Authorization"].ToString();
+            if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer "))
             {
                 return BadRequest(new ErrorResponse("INVALID_TOKEN", "토큰이 제공되지 않았습니다."));
             }
 
-            var user = await _authService.GetUserByTokenAsync(token);
-            if (user == null)
+            var accessToken = authHeader.Replace("Bearer ", "");
+
+            // Access Token에서 userId 추출 (검증 포함)
+            var parseResult = JwtHelper.ParseToken(accessToken, _jwtSettings.Value);
+            if (!parseResult.IsValid || parseResult.Principal == null)
             {
                 return Unauthorized(new ErrorResponse("INVALID_TOKEN", "유효하지 않은 토큰입니다."));
             }
 
-            await _authService.LogoutAsync(user.Id);
+            // 토큰 타입 확인
+            var tokenTypeClaim = parseResult.Principal.FindFirst("type");
+            if (tokenTypeClaim == null || tokenTypeClaim.Value != "access")
+            {
+                return BadRequest(new ErrorResponse("INVALID_TOKEN", "Access Token이 필요합니다."));
+            }
 
+            // userId 추출
+            var userIdClaim = parseResult.Principal.FindFirst("userId");
+            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out int userId))
+            {
+                return Unauthorized(new ErrorResponse("INVALID_TOKEN", "토큰에서 사용자 정보를 찾을 수 없습니다."));
+            }
+
+            // 모든 토큰 폐기 (Refresh Token 삭제)
+            bool success = await _tokenService.RevokeAllUserTokensAsync(userId, request.DeviceId);
+
+            if (!success)
+            {
+                _logger.LogWarning("Logout failed for UserId: {UserId}, DeviceId: {DeviceId}", userId, request.DeviceId);
+                return StatusCode(500, new ErrorResponse("LOGOUT_FAILED", "로그아웃 처리 중 오류가 발생했습니다."));
+            }
+
+            _logger.LogInformation("Logout successful for UserId: {UserId}, DeviceId: {DeviceId}", userId, request.DeviceId);
             return Ok(new { message = "로그아웃 성공" });
-        }
-
-        // GET: api/auth/verify
-        [HttpGet("verify")]
-        public async Task<IActionResult> VerifyToken()
-        {
-            _logger.LogInformation("Token verification request");
-
-            // Authorization 헤더에서 토큰 추출
-            var token = Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
-
-            if (string.IsNullOrEmpty(token))
-            {
-                return BadRequest(new ErrorResponse("INVALID_TOKEN", "토큰이 제공되지 않았습니다."));
-            }
-
-            var user = await _authService.GetUserByTokenAsync(token);
-            if (user == null)
-            {
-                return Unauthorized(new ErrorResponse("INVALID_TOKEN", "유효하지 않은 토큰입니다."));
-            }
-
-            return Ok(new UserInfoResponse(
-                UserId: user.Id.ToString(),
-                Username: user.Username,
-                Email: user.Email,
-                CreatedAt: user.CreatedAt
-            ));
         }
     }
 }

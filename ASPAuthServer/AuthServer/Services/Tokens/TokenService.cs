@@ -56,7 +56,7 @@ namespace AuthServer.Services.Tokens
         /// <summary>
         /// 토큰 폐기 (Redis에서 토큰 삭제)
         /// </summary>
-        public async Task<bool> RevokeTokenAsync(string token, ITokenService.TokenType type)
+        public async Task<bool> RevokeTokenAsync(string token, string deviceId, ITokenService.TokenType type)
         {
             // 토큰 파싱 및 검증
             var parseResult = JwtHelper.ParseToken(token, _jwtSettings);
@@ -112,9 +112,14 @@ namespace AuthServer.Services.Tokens
                             Console.WriteLine($"[TokenService] 리프레시 토큰에서 deviceId claim을 찾을 수 없음");
                             return false;
                         }
-                        string deviceId = claim_deviceId.Value;
+                        if (claim_deviceId.Value != deviceId)
+                        {
+                            Console.WriteLine($"[TokenService] 리프레시 토큰의 deviceId 불일치");
+                            return false;
+                        }
+                        string did = claim_deviceId.Value;
                         var redis = _redisFactory.GetDatabase();
-                        await redis.KeyDeleteAsync(RefreshToken.BuildRedisKey(userId, deviceId));
+                        await redis.KeyDeleteAsync(RefreshToken.BuildRedisKey(userId, did));
                         return true;
                     }
                 default:
@@ -123,10 +128,127 @@ namespace AuthServer.Services.Tokens
             return false;
         }
 
+        public async Task<(string? AccessToken, string? RefreshToken)> ExchangeTokensAsync(string loginToken)
+        {
+            // JWT 로그인 토큰 파싱 후 해당 정보추출. 그 정보로 접속 및 갱신 토큰 생성.
+            var parseResult = JwtHelper.ParseToken(loginToken, _jwtSettings);
+
+            // 검증
+            if (!parseResult.IsValid || parseResult.Principal == null)
+            {
+                Console.WriteLine($"[TokenService] 토큰 파싱 실패: {parseResult.ErrorMessage}");
+                return (null, null);
+            }
+
+            Claim? claim_type = parseResult.Principal.FindFirst("type");
+            if (claim_type == null || claim_type.Value != "login")
+            {
+                Console.WriteLine($"[TokenService] 토큰 타입이 로그인 토큰이 아님");
+                return (null, null);
+            }
+            Claim? claim_userId = parseResult.Principal.FindFirst("userId");
+            if (claim_userId == null || !int.TryParse(claim_userId.Value, out int userId))
+            {
+                Console.WriteLine($"[TokenService] 로그인 토큰에서 userId claim을 찾을 수 없음");
+                return (null, null);
+            }
+            Claim? claim_deviceId = parseResult.Principal.FindFirst("deviceId");
+            if (claim_deviceId == null)
+            {
+                Console.WriteLine($"[TokenService] 로그인 토큰에서 deviceId claim을 찾을 수 없음");
+                return (null, null);
+            }
+            // 검증 끝
+
+            string deviceId = claim_deviceId.Value;
+
+            // 새로운 엑세스 토큰 및 리프레시 토큰 생성
+            string? accessToken = await CreateToken(ITokenService.TokenType.Access, userId, deviceId);
+            if (accessToken == null)
+            {
+                Console.WriteLine($"[TokenService] 엑세스 토큰 생성 실패");
+                return (null, null);
+            }
+            string? refreshToken = await CreateToken(ITokenService.TokenType.Refresh, userId, deviceId);
+            if (refreshToken == null)
+            {
+                Console.WriteLine($"[TokenService] 리프레시 토큰 생성 실패");
+                return (null, null);
+            }
+            return (accessToken, refreshToken);
+        }
+
+        /// <summary>
+        /// 엑세스 토큰 갱신
+        /// </summary>
+        /// <param name="token"></param>
+        /// <returns></returns>
+        public async Task<string?> RefreshRT(string token)
+        {
+            // JWT 토큰 파싱 및 검증
+            var parseResult = JwtHelper.ParseToken(token, _jwtSettings);
+            if (!parseResult.IsValid || parseResult.Principal == null)
+            {
+                Console.WriteLine($"[TokenService] 토큰 파싱 실패: {parseResult.ErrorMessage}");
+                return null;
+            }
+
+            Claim? claim_type = parseResult.Principal.FindFirst("type");
+            if (claim_type == null)
+            {
+                Console.WriteLine($"[TokenService] 토큰 타입 claim을 찾을 수 없음");
+                return null;
+            }
+
+            switch (claim_type.Value)
+            {
+                default:
+                    Console.WriteLine($"[TokenService] 토큰 타입이 리프레시 토큰이 아님");
+                    return null;
+                case "refresh":
+                    {
+                        Claim? claim_userId = parseResult.Principal.FindFirst("userId");
+                        if (claim_userId == null || !int.TryParse(claim_userId.Value, out int userId))
+                        {
+                            Console.WriteLine($"[TokenService] 리프레시 토큰에서 userId claim을 찾을 수 없음");
+                            return null;
+                        }
+                        Claim? claim_deviceId = parseResult.Principal.FindFirst("deviceId");
+                        if (claim_deviceId == null)
+                        {
+                            Console.WriteLine($"[TokenService] 리프레시 토큰에서 deviceId claim을 찾을 수 없음");
+                            return null;
+                        }
+                        string deviceId = claim_deviceId.Value;
+
+                        Claim? claim_exp = parseResult.Principal.FindFirst(JwtRegisteredClaimNames.Exp);
+                        if (claim_exp == null || !long.TryParse(claim_exp.Value, out long expUnix))
+                        {
+                            Console.WriteLine($"[TokenService] 리프레시 토큰에서 만료시간 claim을 찾을 수 없음");
+                            return null;
+                        }
+                        DateTime exp = DateTimeOffset.FromUnixTimeSeconds(expUnix).UtcDateTime;
+
+                        // 토큰 만료시 에러 처리
+                        if (exp < DateTime.UtcNow)
+                        {
+                            Console.WriteLine($"[TokenService] 리프레시 토큰이 만료됨");
+                            return null;
+                        }
+
+                        // Redis 연결 가져오기
+                        var redis = _redisFactory.GetDatabase();
+                        // 새로운 엑세스 토큰 생성
+                        string? newAT = await CreateToken(ITokenService.TokenType.Access, userId, deviceId);
+                        return newAT;
+                    }
+            }
+        }
+
         /// <summary>
         /// 토큰 검증 (타입 자동 감지)
         /// </summary>
-        public async Task<bool> ValidateTokenAsync(string token)
+        public async Task<bool> ValidateTokenAsync(string token, string deviceId)
         {
             // JWT 토큰 파싱 및 검증
             var parseResult = JwtHelper.ParseToken(token, _jwtSettings);
@@ -191,12 +313,17 @@ namespace AuthServer.Services.Tokens
                             Console.WriteLine($"[TokenService] 리프레시 토큰에서 deviceId claim을 찾을 수 없음");
                             return false;
                         }
-                        string deviceId = claim_deviceId.Value;
+                        if (claim_deviceId.Value != deviceId)
+                        {
+                            Console.WriteLine($"[TokenService] 리프레시 토큰의 deviceId 불일치");
+                            return false;
+                        }
+                        string did = claim_deviceId.Value;
 
                         // Redis 연결 가져오기
                         var redis = _redisFactory.GetDatabase();
 
-                        string redisKey = RefreshToken.BuildRedisKey(userId, deviceId);
+                        string redisKey = RefreshToken.BuildRedisKey(userId, did);
 
                         // 레디스에 토큰이 존재하는지 확인
                         if (!await redis.KeyExistsAsync(redisKey))
@@ -213,7 +340,7 @@ namespace AuthServer.Services.Tokens
         /// <summary>
         /// 토큰 검증 (타입 명시)
         /// </summary>
-        public async Task<bool> ValidateTokenAsync(string token, ITokenService.TokenType type)
+        public async Task<bool> ValidateTokenAsync(string token, string deviceId, ITokenService.TokenType type)
         {
             // JWT 토큰 파싱 및 검증
             var parseResult = JwtHelper.ParseToken(token, _jwtSettings);
@@ -287,12 +414,17 @@ namespace AuthServer.Services.Tokens
                             Console.WriteLine($"[TokenService] 리프레시 토큰에서 deviceId claim을 찾을 수 없음");
                             return false;
                         }
-                        string deviceId = claim_deviceId.Value;
+                        if (claim_deviceId.Value != deviceId)
+                        {
+                            Console.WriteLine($"[TokenService] 리프레시 토큰의 deviceId 불일치");
+                            return false;
+                        }
+                        string did = claim_deviceId.Value;
 
                         // Redis 연결 가져오기
                         var redis = _redisFactory.GetDatabase();
 
-                        string redisKey = RefreshToken.BuildRedisKey(userId, deviceId);
+                        string redisKey = RefreshToken.BuildRedisKey(userId, did);
 
                         // 레디스에 토큰이 존재하는지 확인
                         if (!await redis.KeyExistsAsync(redisKey))
@@ -356,6 +488,33 @@ namespace AuthServer.Services.Tokens
 
             Console.WriteLine($"[TokenService] 로그인 토큰을 사용됨으로 표시. JTI: {jti}, 보관시간: {_jwtSettings.UsedLoginTokenRetentionHours}시간");
             return true;
+        }
+
+        /// <summary>
+        /// 특정 사용자의 모든 토큰 폐기 (로그아웃)
+        /// </summary>
+        public async Task<bool> RevokeAllUserTokensAsync(int userId, string deviceId)
+        {
+            try
+            {
+                var redis = _redisFactory.GetDatabase();
+
+                // Refresh Token 삭제 (가장 중요)
+                string refreshKey = RefreshToken.BuildRedisKey(userId, deviceId);
+                bool refreshDeleted = await redis.KeyDeleteAsync(refreshKey);
+
+                Console.WriteLine($"[TokenService] 사용자 로그아웃: UserId={userId}, DeviceId={deviceId}, RefreshToken 삭제={refreshDeleted}");
+
+                // Access Token은 stateless이므로 Redis에 저장되지 않음
+                // 만료될 때까지 유효하지만, Refresh Token이 없으면 갱신 불가
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TokenService] 로그아웃 실패: {ex.Message}");
+                return false;
+            }
         }
     }
 }
