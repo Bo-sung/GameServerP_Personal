@@ -1,0 +1,132 @@
+<UserControl x:Class="GMTool.Views.Controls.LogViewer"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.modernwpf.com/2019">
+
+    <UserControl.Resources>
+        <!-- 로그 레벨별 색상 -->
+        <SolidColorBrush x:Key="DebugBrush" Color="#9E9E9E" />
+        <SolidColorBrush x:Key="InfoBrush" Color="#2196F3" />
+        <SolidColorBrush x:Key="SuccessBrush" Color="#4CAF50" />
+        <SolidColorBrush x:Key="WarningBrush" Color="#FF9800" />
+        <SolidColorBrush x:Key="ErrorBrush" Color="#F44336" />
+    </UserControl.Resources>
+
+    <Border Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="48" />   <!-- 툴바 -->
+                <RowDefinition Height="*" />    <!-- 로그 목록 -->
+            </Grid.RowDefinitions>
+
+            <!-- 툴바 -->
+            <Border Grid.Row="0" Background="White" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Padding="12,8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 검색 -->
+                    <TextBox Grid.Column="0"
+                             x:Name="SearchTextBox"
+                             ui:ControlHelper.PlaceholderText="로그 검색..."
+                             VerticalAlignment="Center"
+                             Height="32"
+                             Margin="0,0,12,0" />
+
+                    <!-- 로그 레벨 필터 -->
+                    <ComboBox Grid.Column="1"
+                              x:Name="LogLevelComboBox"
+                              SelectedIndex="0"
+                              VerticalAlignment="Center"
+                              Width="120"
+                              Height="32"
+                              Margin="0,0,12,0">
+                        <ComboBoxItem Content="전체" />
+                        <ComboBoxItem Content="🔍 Debug" />
+                        <ComboBoxItem Content="ℹ️ Info" />
+                        <ComboBoxItem Content="✅ Success" />
+                        <ComboBoxItem Content="⚠️ Warning" />
+                        <ComboBoxItem Content="❌ Error" />
+                    </ComboBox>
+
+                    <!-- 클리어 버튼 -->
+                    <Button Grid.Column="2"
+                            x:Name="ClearButton"
+                            Content="🗑️ 클리어"
+                            VerticalAlignment="Center"
+                            Height="32"
+                            Padding="12,0"
+                            Margin="0,0,12,0" />
+
+                    <!-- 로그 개수 -->
+                    <TextBlock Grid.Column="3"
+                               x:Name="LogCountText"
+                               Text="총 0개"
+                               VerticalAlignment="Center"
+                               Foreground="#666"
+                               FontSize="13"
+                               Margin="12,0,0,0" />
+                </Grid>
+            </Border>
+
+            <!-- 로그 목록 -->
+            <ListBox Grid.Row="1"
+                     x:Name="LogListBox"
+                     Background="White"
+                     BorderThickness="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling">
+
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Padding" Value="12,6" />
+                        <Setter Property="BorderThickness" Value="0,0,0,1" />
+                        <Setter Property="BorderBrush" Value="#F0F0F0" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
+
+                <!-- 샘플 로그 아이템 (나중에 DataTemplate으로 바인딩) -->
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel>
+                            <!-- 로그 메시지 -->
+                            <TextBlock FontFamily="Consolas"
+                                       FontSize="13"
+                                       TextWrapping="Wrap"
+                                       Text="[12:34:56] ℹ️ 샘플 로그 메시지입니다"
+                                       Foreground="#333" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- 로그 없을 때 표시 -->
+            <Border Grid.Row="1"
+                    x:Name="EmptyLogBorder"
+                    Background="White"
+                    Visibility="Visible">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <TextBlock Text="📝"
+                               FontSize="48"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,16" />
+                    <TextBlock Text="로그가 없습니다"
+                               FontSize="16"
+                               Foreground="#999"
+                               HorizontalAlignment="Center" />
+                    <TextBlock Text="API 호출, 에러, 사용자 액션이 여기에 표시됩니다"
+                               FontSize="13"
+                               Foreground="#BBB"
+                               HorizontalAlignment="Center"
+                               Margin="0,8,0,0" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

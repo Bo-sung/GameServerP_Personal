@@ -1,0 +1,200 @@
+<Page x:Class="GMTool.Views.Pages.DashboardPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.modernwpf.com/2019"
+      Title="대시보드">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32" MaxWidth="1200">
+
+            <!-- 헤더 -->
+            <Grid Margin="0,0,0,24">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="📊 대시보드"
+                               FontSize="28"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,8" />
+                    <TextBlock Text="서버 통계 및 현황을 확인하세요"
+                               FontSize="14"
+                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        x:Name="RefreshButton"
+                        Content="🔄 새로고침"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Height="40"
+                        Padding="20,0"
+                        VerticalAlignment="Bottom" />
+            </Grid>
+
+            <!-- 통계 카드 -->
+            <UniformGrid Rows="2" Columns="3" Margin="0,0,0,24">
+                <!-- 총 사용자 -->
+                <Border Background="White"
+                        BorderBrush="#E0E0E0"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="24"
+                        Margin="0,0,16,16">
+                    <StackPanel>
+                        <TextBlock Text="총 사용자"
+                                   FontSize="14"
+                                   Foreground="#666"
+                                   Margin="0,0,0,8" />
+                        <TextBlock x:Name="TotalUsersText"
+                                   Text="0"
+                                   FontSize="36"
+                                   FontWeight="SemiBold"
+                                   Foreground="#333" />
+                        <TextBlock Text="전체 가입자 수"
+                                   FontSize="12"
+                                   Foreground="#999"
+                                   Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- 활성 사용자 -->
+                <Border Background="White"
+                        BorderBrush="#E0E0E0"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="24"
+                        Margin="0,0,16,16">
+                    <StackPanel>
+                        <TextBlock Text="활성 사용자"
+                                   FontSize="14"
+                                   Foreground="#666"
+                                   Margin="0,0,0,8" />
+                        <TextBlock x:Name="ActiveUsersText"
+                                   Text="0"
+                                   FontSize="36"
+                                   FontWeight="SemiBold"
+                                   Foreground="#4CAF50" />
+                        <TextBlock Text="활성화된 계정"
+                                   FontSize="12"
+                                   Foreground="#999"
+                                   Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- 잠긴 계정 -->
+                <Border Background="White"
+                        BorderBrush="#E0E0E0"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="24"
+                        Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="잠긴 계정"
+                                   FontSize="14"
+                                   Foreground="#666"
+                                   Margin="0,0,0,8" />
+                        <TextBlock x:Name="LockedUsersText"
+                                   Text="0"
+                                   FontSize="36"
+                                   FontWeight="SemiBold"
+                                   Foreground="#F44336" />
+                        <TextBlock Text="일시 정지된 계정"
+                                   FontSize="12"
+                                   Foreground="#999"
+                                   Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- 현재 온라인 -->
+                <Border Background="White"
+                        BorderBrush="#E0E0E0"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="24"
+                        Margin="0,0,16,0">
+                    <StackPanel>
+                        <TextBlock Text="현재 온라인"
+                                   FontSize="14"
+                                   Foreground="#666"
+                                   Margin="0,0,0,8" />
+                        <TextBlock x:Name="OnlineUsersText"
+                                   Text="0"
+                                   FontSize="36"
+                                   FontWeight="SemiBold"
+                                   Foreground="#2196F3" />
+                        <TextBlock Text="접속 중인 사용자"
+                                   FontSize="12"
+                                   Foreground="#999"
+                                   Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- 오늘 가입 -->
+                <Border Background="White"
+                        BorderBrush="#E0E0E0"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="24"
+                        Margin="0,0,16,0">
+                    <StackPanel>
+                        <TextBlock Text="오늘 가입"
+                                   FontSize="14"
+                                   Foreground="#666"
+                                   Margin="0,0,0,8" />
+                        <TextBlock x:Name="TodayRegistrationsText"
+                                   Text="0"
+                                   FontSize="36"
+                                   FontWeight="SemiBold"
+                                   Foreground="#9C27B0" />
+                        <TextBlock Text="신규 가입자"
+                                   FontSize="12"
+                                   Foreground="#999"
+                                   Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- 오늘 로그인 -->
+                <Border Background="White"
+                        BorderBrush="#E0E0E0"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="24">
+                    <StackPanel>
+                        <TextBlock Text="오늘 로그인"
+                                   FontSize="14"
+                                   Foreground="#666"
+                                   Margin="0,0,0,8" />
+                        <TextBlock x:Name="TodayLoginsText"
+                                   Text="0"
+                                   FontSize="36"
+                                   FontWeight="SemiBold"
+                                   Foreground="#FF9800" />
+                        <TextBlock Text="오늘 로그인 수"
+                                   FontSize="12"
+                                   Foreground="#999"
+                                   Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+
+            <!-- 최근 활동 (예제) -->
+            <Border Background="White"
+                    BorderBrush="#E0E0E0"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="24">
+                <StackPanel>
+                    <TextBlock Text="📌 최근 활동"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,16" />
+                    <TextBlock Text="최근 활동 내역이 여기에 표시됩니다."
+                               FontSize="14"
+                               Foreground="#999" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

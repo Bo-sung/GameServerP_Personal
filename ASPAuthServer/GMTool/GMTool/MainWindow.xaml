@@ -1,0 +1,148 @@
+<Window x:Class="GMTool.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.modernwpf.com/2019"
+        xmlns:controls="clr-namespace:GMTool.Views.Controls"
+        Title="GM Tool"
+        Width="1400"
+        Height="900"
+        WindowStartupLocation="CenterScreen"
+        ui:WindowHelper.UseModernWindowStyle="True">
+
+    <Window.Resources>
+        <!-- 사이드바 버튼 스타일 -->
+        <Style x:Key="SidebarButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="16,12" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                            VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#34495E" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#1C2833" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />      <!-- 메인 콘텐츠 -->
+            <RowDefinition Height="5" />      <!-- 리사이저 -->
+            <RowDefinition Height="200" MinHeight="100" MaxHeight="500" /> <!-- 로그 영역 (리사이즈 가능) -->
+        </Grid.RowDefinitions>
+
+        <!-- 메인 콘텐츠 (사이드바 + 페이지) -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220" />  <!-- 사이드바 -->
+                <ColumnDefinition Width="*" />    <!-- 페이지 콘텐츠 -->
+            </Grid.ColumnDefinitions>
+
+            <!-- 사이드바 -->
+            <Border Grid.Column="0"
+                    Background="#2C3E50"
+                    BorderBrush="#34495E"
+                    BorderThickness="0,0,1,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />   <!-- 헤더 -->
+                        <RowDefinition Height="*" />      <!-- 메뉴 -->
+                        <RowDefinition Height="Auto" />   <!-- 하단 -->
+                    </Grid.RowDefinitions>
+
+                    <!-- 헤더 -->
+                    <Border Grid.Row="0"
+                            Background="#1C2833"
+                            Padding="16">
+                        <StackPanel>
+                            <TextBlock Text="🎮 GM Tool"
+                                     FontSize="18"
+                                     FontWeight="SemiBold"
+                                     Foreground="White" />
+                            <TextBlock Text="관리자 패널"
+                                     FontSize="12"
+                                     Foreground="#BDC3C7"
+                                     Margin="0,4,0,0" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 메뉴 -->
+                    <StackPanel Grid.Row="1" Margin="0,16,0,0">
+                        <Button x:Name="DashboardButton"
+                                Content="📊 대시보드"
+                                Style="{StaticResource SidebarButtonStyle}" />
+
+                        <Button x:Name="UsersButton"
+                                Content="👥 사용자 관리"
+                                Style="{StaticResource SidebarButtonStyle}" />
+
+                        <Button x:Name="StatisticsButton"
+                                Content="📈 통계"
+                                Style="{StaticResource SidebarButtonStyle}" />
+
+                        <Separator Background="#34495E"
+                                 Margin="8,16" />
+
+                        <Button x:Name="SettingsButton"
+                                Content="⚙️ 설정"
+                                Style="{StaticResource SidebarButtonStyle}" />
+                    </StackPanel>
+
+                    <!-- 하단 -->
+                    <Border Grid.Row="2"
+                            Background="#1C2833"
+                            Padding="16"
+                            BorderBrush="#34495E"
+                            BorderThickness="0,1,0,0">
+                        <StackPanel>
+                            <TextBlock x:Name="CurrentUserText"
+                                     Text="관리자: admin"
+                                     FontSize="12"
+                                     Foreground="#BDC3C7"
+                                     Margin="0,0,0,8" />
+                            <Button x:Name="LogoutButton"
+                                    Content="🚪 로그아웃"
+                                    Style="{StaticResource SidebarButtonStyle}"
+                                    Padding="0"
+                                    Foreground="#E74C3C" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- 페이지 콘텐츠 -->
+            <Frame Grid.Column="1"
+                   x:Name="MainFrame"
+                   NavigationUIVisibility="Hidden"
+                   Background="{DynamicResource SystemControlPageBackgroundChromeLowBrush}" />
+        </Grid>
+
+        <!-- GridSplitter (로그 영역 높이 조절) -->
+        <GridSplitter Grid.Row="1"
+                      Height="5"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Center"
+                      Background="#E0E0E0"
+                      Cursor="SizeNS" />
+
+        <!-- 로그 뷰어 (하단 고정) -->
+        <controls:LogViewer Grid.Row="2" />
+    </Grid>
+</Window>
