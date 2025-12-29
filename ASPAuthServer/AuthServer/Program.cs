@@ -1,6 +1,8 @@
 using AuthServer.Settings;
 using AuthServer.Data;
 using AuthServer.Data.Repositories;
+using AuthServer.Services.Auth;
+using AuthServer.Services.Tokens;
 
 namespace AuthServer
 {
@@ -12,13 +14,14 @@ namespace AuthServer
 
             // Controller 등록
             builder.Services.AddControllers();
+
             // Options 패턴으로 설정 등록 및 검증
             builder.Services.AddOptions<DatabaseSettings>()
                 .Bind(builder.Configuration.GetSection("DatabaseSettings"))
                 .ValidateDataAnnotations()
                 .ValidateOnStart();
 
-            // Named Options로 여러 JwtSettings 등록
+            // Named Options로 여러 JwtSettings 등록 (Game과 Admin 분리)
             builder.Services.AddOptions<JwtSettings>("Game")
                 .Bind(builder.Configuration.GetSection("GameJwtSettings"))
                 .ValidateDataAnnotations()
@@ -46,7 +49,12 @@ namespace AuthServer
 
             // DB 관련 서비스 등록
             builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
+            builder.Services.AddSingleton<IRedisConnectionFactory, RedisConnectionFactory>();
             builder.Services.AddScoped<IUserRepository, UserRepository>();
+
+            // 비즈니스 서비스 등록
+            builder.Services.AddScoped<ITokenService, TokenService>();
+            builder.Services.AddScoped<IAuthService, AuthService>();
 
             var app = builder.Build();
 

@@ -1,6 +1,6 @@
 namespace AuthServer.Models
 {
-    // Request 모델들
+    // 게임 클라이언트 Request 모델들
     public record RegisterRequest(string Username, string Password, string? Email = null);
 
     public record LoginRequest(string Username, string Password, string DeviceId);
@@ -12,6 +12,11 @@ namespace AuthServer.Models
     public record ExchangeRequest(string LoginToken, string DeviceId);
 
     public record LogoutRequest(string DeviceId);
+
+    // 관리자 Request 모델들
+    public record LockUserRequest(bool Lock, int? DurationMinutes = null);
+
+    public record ResetPasswordRequest(string NewPassword);
 
     // Response 모델들
     public record AuthResponse(string LoginToken, int ExpiresIn, string TokenType = "Bearer");

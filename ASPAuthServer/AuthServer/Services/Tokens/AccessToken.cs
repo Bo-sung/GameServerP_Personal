@@ -16,7 +16,7 @@ namespace AuthServer.Services.Tokens
         private AccessToken() { }
 
         /// <summary>
-        /// 로그인 토큰 생성 (Factory Method)
+        /// 액세스 토큰 생성 (Factory Method)
         /// </summary>
         public static AccessToken Create(int userId, JwtSettings settings)
         {
@@ -25,10 +25,10 @@ namespace AuthServer.Services.Tokens
                 Jti = Guid.NewGuid().ToString(),
                 UserId = userId,
                 IssuedAt = DateTime.UtcNow,
-                ExpiresAt = DateTime.UtcNow.AddMinutes(settings.LoginTokenExpirationMinutes)
+                ExpiresAt = DateTime.UtcNow.AddMinutes(settings.AccessTokenExpirationMinutes)
             };
 
-            // 로그인 토큰만의 고유한 Claims 정의
+            // 액세스 토큰만의 고유한 Claims 정의
             token.JwtString = token.GenerateJwt(settings);
             return token;
         }
@@ -41,7 +41,7 @@ namespace AuthServer.Services.Tokens
                 new Claim(JwtRegisteredClaimNames.Sub, UserId.ToString()),
                 new Claim("userId", UserId.ToString()),
                 new Claim("type", "access"),
-                new Claim("purpose", "token_exchange"),  // 로그인 토큰 전용
+                new Claim("purpose", "api_access")  // 액세스 토큰 전용
             };
 
             return JwtHelper.GenerateToken(claims, settings, ExpiresAt);

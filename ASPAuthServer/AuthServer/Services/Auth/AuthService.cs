@@ -28,7 +28,7 @@ namespace AuthServer.Services.Auth
             _tokenService = tokenService;
         }
 
-        public async Task<(bool Success, string? Token, string? Message, User? User)> LoginAsync(string username, string password, string deviceId)
+        public async Task<(bool Success, string? Token, string? Message, User? User)> LoginAsync(string username, string password, string deviceId, string audience = "GameClient")
         {
             var user = await _userRepository.GetByUsernameAsync(username);
             if (user == null)
@@ -65,8 +65,8 @@ namespace AuthServer.Services.Auth
             user.LastLoginAt = DateTime.UtcNow;
             await _userRepository.UpdateAsync(user);
 
-            // 토큰 생성
-            string? loginToken = await _tokenService.CreateToken(ITokenService.TokenType.Login, user.Id, deviceId);
+            // 토큰 생성 (audience 전달)
+            string? loginToken = await _tokenService.CreateToken(ITokenService.TokenType.Login, user.Id, deviceId, audience);
 
             if (loginToken == null)
             {
@@ -100,32 +100,15 @@ namespace AuthServer.Services.Auth
             return (true, userId, "회원가입 성공");
         }
 
+        /// <summary>
+        /// [Deprecated] 로그아웃 로직은 TokenService.RevokeAllUserTokensAsync 사용
+        /// </summary>
+        [Obsolete("Use TokenService.RevokeAllUserTokensAsync instead")]
         public async Task<bool> LogoutAsync(int userId)
         {
-            var redis = _redisFactory.GetDatabase();
-
+            // 더 이상 사용되지 않음. TokenService.RevokeAllUserTokensAsync 사용
+            await Task.CompletedTask;
             return true;
-        }
-
-        public async Task<User?> GetUserByTokenAsync(string token)
-        {
-            var redis = _redisFactory.GetDatabase();
-            var userIdStr = await redis.StringGetAsync($"token:{token}");
-
-            if (userIdStr.IsNullOrEmpty)
-                return null;
-
-            if (int.TryParse(userIdStr, out int userId))
-            {
-                return await _userRepository.GetByIdAsync(userId);
-            }
-
-            return null;
-        }
-
-        public async Task<bool> ValidateTokenAsync(string token, ITokenService.TokenType type)
-        {
-            return await _tokenService.ValidateTokenAsync(token, type);
         }
 
         private string HashPassword(string password)
