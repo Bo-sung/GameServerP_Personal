@@ -1,9 +1,10 @@
-using GMTool.Infrastructure.Config;
 using GMTool.Infrastructure.Token;
 using GMTool.Services.Logging;
 using System;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace GMTool.Services.Auth
@@ -51,18 +52,15 @@ namespace GMTool.Services.Auth
         private readonly HttpClient _httpClient;
         private readonly ITokenManager _tokenManager;
         private readonly ILogService _logService;
-        private readonly AppSettings _appSettings;
 
         public AuthService(
             HttpClient httpClient,
             ITokenManager tokenManager,
-            ILogService logService,
-            AppSettings appSettings)
+            ILogService logService)
         {
             _httpClient = httpClient;
             _tokenManager = tokenManager;
             _logService = logService;
-            _appSettings = appSettings;
         }
 
         public async Task<string> LoginAsync(string username, string password, string deviceId = "GMTool_Desktop")
@@ -74,7 +72,7 @@ namespace GMTool.Services.Auth
                 var request = new LoginRequest(Username: username, Password: password, DeviceId: deviceId);
 
 
-                var response = await _httpClient.PostAsJsonAsync($"{_appSettings.ApiBaseUrl}/api/admin/login", request);
+                var response = await _httpClient.PostAsJsonAsync("/api/admin/login", request);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -113,7 +111,7 @@ namespace GMTool.Services.Auth
             {
                 var request = new ExchangeRequest(LoginToken: loginToken, DeviceId: deviceId);
 
-                var response = await _httpClient.PostAsJsonAsync($"{_appSettings.ApiBaseUrl}/api/admin/exchange", request);
+                var response = await _httpClient.PostAsJsonAsync("/api/admin/exchange", request);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -149,7 +147,7 @@ namespace GMTool.Services.Auth
                     DeviceId: deviceId
                 );
 
-                var response = await _httpClient.PostAsJsonAsync($"{_appSettings.ApiBaseUrl}/api/admin/refresh", request);
+                var response = await _httpClient.PostAsJsonAsync("/api/admin/refresh", request);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -184,7 +182,7 @@ namespace GMTool.Services.Auth
             {
                 var request = new LogoutRequest(DeviceId: deviceId);
 
-                var response = await _httpClient.PostAsJsonAsync($"{_appSettings.ApiBaseUrl}/api/admin/logout", request);
+                var response = await _httpClient.PostAsJsonAsync("/api/admin/logout", request);
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorContent = await response.Content.ReadAsStringAsync();

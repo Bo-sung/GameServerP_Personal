@@ -81,7 +81,7 @@ namespace GMTool.Services.User
             // GET /api/admin/users?page={page}&pageSize={pageSize}&search={search}&isActive={isActive}
             try
             {
-                var response = await _httpClient.GetAsync($"{_appSettings.ApiBaseUrl}/api/admin/users?page={page}&pageSize={pageSize}&search={search}&isActive={isActive}");
+                var response = await _httpClient.GetAsync($"/api/admin/users?page={page}&pageSize={pageSize}&search={search}&isActive={isActive}");
 
                 if (response == null)
                     throw new NotImplementedException();
@@ -107,7 +107,7 @@ namespace GMTool.Services.User
             // GET /api/admin/users/{userId}
             try
             {
-                var response = await _httpClient.GetAsync($"{_appSettings.ApiBaseUrl}/api/admin/users/{userId}");
+                var response = await _httpClient.GetAsync($"/api/admin/users/{userId}");
 
                 if (response == null)
                     throw new NotImplementedException();
@@ -143,7 +143,7 @@ namespace GMTool.Services.User
                     DurationMinitues: durationMinutes
                 );
 
-                var url = $"{_appSettings.ApiBaseUrl}/api/admin/users/{userId}/lock";
+                var url = $"/api/admin/users/{userId}/lock";
                 var response = await _httpClient.PatchAsJsonAsync(url, request);
 
                 if (!response.IsSuccessStatusCode)
@@ -175,7 +175,7 @@ namespace GMTool.Services.User
                     NewPassword: newPassword
                     );
 
-                var url = $"{_appSettings.ApiBaseUrl}/api/admin/users/{userId}/reset-password";
+                var url = $"/api/admin/users/{userId}/reset-password";
                 var response = await _httpClient.PostAsJsonAsync(url, request);
 
                 if (!response.IsSuccessStatusCode)
@@ -201,7 +201,7 @@ namespace GMTool.Services.User
                 var target = string.IsNullOrEmpty(deviceId) ? "모든 세션" : $"디바이스 {deviceId}";
                 _logService.Warning($"사용자 #{userId} {target} 강제 종료 시도");
 
-                var url = $"{_appSettings.ApiBaseUrl}/api/admin/users/{userId}/sessions";
+                var url = $"/api/admin/users/{userId}/sessions";
 
                 if (!string.IsNullOrEmpty(deviceId))
                     url += $"?deviceId={Uri.EscapeDataString(deviceId)}";
@@ -236,7 +236,7 @@ namespace GMTool.Services.User
             {
                 _logService.Warning($"사용자 #{userId} 삭제 시도");
 
-                var url = $"{_appSettings.ApiBaseUrl}/api/admin/users/{userId}";
+                var url = $"/api/admin/users/{userId}";
                 var response = await _httpClient.DeleteAsync(url);
 
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)

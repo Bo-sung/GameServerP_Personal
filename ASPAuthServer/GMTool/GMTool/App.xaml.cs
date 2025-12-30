@@ -53,7 +53,7 @@ public partial class App : Application
         // AppSettings (싱글톤)
         services.AddSingleton(new AppSettings
         {
-            ApiBaseUrl = "http://localhost:5000",
+            ApiBaseUrl = "http://localhost:5126",
             DeviceId = "GMTool_Desktop",
             MaxLogCount = 500,
             RequestTimeoutSeconds = 30

@@ -5,7 +5,7 @@ namespace GMTool.Infrastructure.Config
         /// <summary>
         /// API Base URL
         /// </summary>
-        public string ApiBaseUrl { get; set; } = "http://localhost:5000";
+        public string ApiBaseUrl { get; set; } = "http://localhost:7276";
 
         /// <summary>
         /// Device ID (고정값)

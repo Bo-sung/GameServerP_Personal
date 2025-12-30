@@ -52,7 +52,7 @@ namespace GMTool.Services.Statistics
 
                 _logService.Info("서버 통계 조회 중...");
 
-                var url = $"{_appSettings.ApiBaseUrl}/api/admin/statistics";
+                var url = "/api/admin/statistics";
                 var response = await _httpClient.GetAsync(url);
 
                 if (!response.IsSuccessStatusCode)

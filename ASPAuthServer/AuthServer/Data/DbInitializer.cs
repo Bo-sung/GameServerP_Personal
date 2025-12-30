@@ -24,19 +24,17 @@ namespace AuthServer.Data
         /// </summary>
         public async Task InitializeAsync()
         {
-            Console.WriteLine("[DB 초기화] 시작...");
-
             try
             {
                 await EnsureDatabaseExistsAsync();
                 await EnsureTablesExistAsync();
                 await SeedDefaultDataAsync();
-
-                Console.WriteLine("[DB 초기화] 완료");
             }
             catch (Exception ex)
             {
+                Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"[DB 초기화 실패] {ex.Message}");
+                Console.ResetColor();
                 throw;
             }
         }
@@ -62,15 +60,23 @@ namespace AuthServer.Data
 
             if (exists == null)
             {
-                Console.WriteLine($"데이터베이스 '{databaseName}' 생성 중...");
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"  → 데이터베이스 '{databaseName}' 생성 중...");
+                Console.ResetColor();
+
                 var createDbSql = $"CREATE DATABASE `{databaseName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci";
                 using var createCmd = new MySqlCommand(createDbSql, connection);
                 await createCmd.ExecuteNonQueryAsync();
-                Console.WriteLine($"데이터베이스 '{databaseName}' 생성 완료");
+
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine($"  ✓ 데이터베이스 '{databaseName}' 생성 완료");
+                Console.ResetColor();
             }
             else
             {
-                Console.WriteLine($" 데이터베이스 '{databaseName}' 존재 확인");
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine($"  ✓ 데이터베이스 '{databaseName}' 존재 확인");
+                Console.ResetColor();
             }
         }
 
@@ -98,7 +104,9 @@ namespace AuthServer.Data
 
             if (!await TableExistsAsync(connection, tableName))
             {
-                Console.WriteLine($"테이블 '{tableName}' 생성 중...");
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"  → 테이블 '{tableName}' 생성 중...");
+                Console.ResetColor();
 
                 var createTableSql = @"
                     CREATE TABLE Users (
@@ -120,11 +128,15 @@ namespace AuthServer.Data
                 using var command = new MySqlCommand(createTableSql, connection);
                 await command.ExecuteNonQueryAsync();
 
-                Console.WriteLine($"테이블 '{tableName}' 생성 완료");
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine($"  ✓ 테이블 '{tableName}' 생성 완료");
+                Console.ResetColor();
             }
             else
             {
-                Console.WriteLine($"테이블 '{tableName}' 존재 확인");
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine($"  ✓ 테이블 '{tableName}' 존재 확인");
+                Console.ResetColor();
             }
         }
 
@@ -162,7 +174,9 @@ namespace AuthServer.Data
 
             if (userCount == 0)
             {
-                Console.WriteLine("기본 관리자 계정 생성 중...");
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine("  → 기본 관리자 계정 생성 중...");
+                Console.ResetColor();
 
                 // 기본 관리자 계정 생성 (admin / admin123)
                 var passwordHash = HashPassword("admin123");
@@ -181,12 +195,22 @@ namespace AuthServer.Data
 
                 await insertCmd.ExecuteNonQueryAsync();
 
-                Console.WriteLine("기본 관리자 계정 생성 완료 (ID: admin, PW: admin123)");
-                Console.WriteLine("보안을 위해 비밀번호를 즉시 변경하세요!");
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("  ✓ 기본 관리자 계정 생성 완료");
+                Console.ResetColor();
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine("     Username: admin");
+                Console.WriteLine("     Password: admin123");
+                Console.ResetColor();
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine("     ⚠️  보안을 위해 비밀번호를 즉시 변경하세요!");
+                Console.ResetColor();
             }
             else
             {
-                Console.WriteLine($"기존 사용자 확인 ({userCount}명)");
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine($"  ✓ 기존 사용자 확인 ({userCount}명)");
+                Console.ResetColor();
             }
         }
 

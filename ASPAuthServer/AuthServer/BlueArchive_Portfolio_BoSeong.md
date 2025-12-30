@@ -246,10 +246,11 @@
 |------|------|
 | 개발 기간 | 2022년 ~ 2024년 (실무 중) |
 | 역할 | 개인 개발 (사내 도구) |
-| 주요 기술 | C#, Excel Interop, MSI Installer |
+| 주요 기술 | C#, Excel Interop, MSI Installer, WPF |
 
 #### 프로젝트 개요
 게임 기획 데이터를 자동화하기 위한 엑셀 테이블 추출 도구입니다. 기획자가 작성한 엑셀 스프레드시트를 게임에서 사용 가능한 데이터 형식으로 자동 변환하여 개발 프로세스를 간소화했습니다.
+WPF 기반 데스크톱 프로그램 / Excel VSTO Addin 기반 엑셀 익스텐션으로 2종.
 
 #### 주요 기능
 - 엑셀 범위 선택 및 테이블 자동 추출
@@ -278,10 +279,11 @@
 - **Git 서버 구축 경험**: CentOS 기반 Git 원격 서버 직접 구축
 - **Git Flow 전략**: Git Flow 브랜치 전략 이해 및 적용
 - **다양한 플랫폼 경험**: GitHub, Naver Cloud Platform 소스 커밋, 자체 구축 Git 서버
+- 소스트리. 깃 허브 데스크톱. 등 Git 클라이언트 다수 사용 경험 보유.
 
 ### 협업 도구
 
-Notion, Discord, Trello, Hiworks messenger, Google Sheets
+Notion, Discord, Trello, Dooray! messanger, Hiworks messenger, Google Sheets
 
 ---
 
