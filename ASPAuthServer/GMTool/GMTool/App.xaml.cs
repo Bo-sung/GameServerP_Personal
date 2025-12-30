@@ -27,13 +27,22 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        // DI 컨테이너 설정
+        // 의존성 주입 컨테이너 설정
         var services = new ServiceCollection();
         ConfigureServices(services);
         _serviceProvider = services.BuildServiceProvider();
 
         // LoginWindow 표시
         var loginWindow = _serviceProvider.GetRequiredService<LoginWindow>();
+
+        // 로그인 성공 시 MainWindow 열기
+        loginWindow.LoginSucceeded += (sender, args) =>
+        {
+            var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
+            mainWindow.Show();
+            loginWindow.Close();
+        };
+
         loginWindow.Show();
     }
 
@@ -103,8 +112,8 @@ public partial class App : Application
         // LoginWindow (Transient - 매번 새로 생성)
         services.AddTransient<LoginWindow>();
 
-        // MainWindow (Singleton - 한 번만 생성)
-        services.AddSingleton<MainWindow>();
+        // MainWindow (Transient - 필요 시 생성)
+        services.AddTransient<MainWindow>();
     }
 
     protected override void OnExit(ExitEventArgs e)
