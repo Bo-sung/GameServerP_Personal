@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using AuthServer.Models;
@@ -15,18 +16,21 @@ namespace AuthServer.Controllers
         private readonly ITokenService _tokenService;
         private readonly IAuthService _authService;
         private readonly IUserRepository _userRepository;
+        private readonly IAdminRepository _adminRepository;
         private readonly IOptionsSnapshot<JwtSettings> _jwtSettings;
         private readonly ILogger<AdminController> _logger;
 
         public AdminController(
             IAuthService authService,
             IUserRepository userRepository,
+            IAdminRepository adminRepository,
             IOptionsSnapshot<JwtSettings> jwtSettings,
             ILogger<AdminController> logger,
             ITokenService tokenService)
         {
             _authService = authService;
             _userRepository = userRepository;
+            _adminRepository = adminRepository;
             _jwtSettings = jwtSettings;
             _logger = logger;
             _tokenService = tokenService;
@@ -38,10 +42,29 @@ namespace AuthServer.Controllers
         {
             _logger.LogInformation("Admin login request for username: {Username}", request.Username);
 
-            // TODO: 관리자 계정 테이블 분리 필요 (현재는 일반 사용자 테이블 사용)
-            // 실제 운영 시 별도의 AdminRepository와 Admin 테이블 필요
+            // Admin 테이블에서 관리자 계정 확인
+            var admin = await _adminRepository.GetByUsernameAsync(request.Username);
+            if (admin == null)
+            {
+                _logger.LogWarning("Admin not found: {Username}", request.Username);
+                return Unauthorized(new ErrorResponse("ADMIN_LOGIN_FAILED", "관리자 계정이 존재하지 않습니다."));
+            }
 
-            // 관리자용 로그인 (AdminPanel audience 사용)
+            // 계정 잠금 확인
+            if (admin.LockedUntil.HasValue && admin.LockedUntil.Value > DateTime.UtcNow)
+            {
+                _logger.LogWarning("Admin account locked: {Username}", request.Username);
+                return Unauthorized(new ErrorResponse("ADMIN_LOCKED", $"관리자 계정이 잠겨있습니다. 잠금 해제 시간: {admin.LockedUntil.Value}"));
+            }
+
+            // 계정 활성 상태 확인
+            if (!admin.IsActive)
+            {
+                _logger.LogWarning("Admin account inactive: {Username}", request.Username);
+                return Unauthorized(new ErrorResponse("ADMIN_INACTIVE", "관리자 계정이 비활성화되었습니다."));
+            }
+
+            // 비밀번호 검증 (AuthService의 로그인 로직 사용)
             var (success, token, message, user) = await _authService.LoginAsync(
                 request.Username,
                 request.Password,
@@ -51,16 +74,38 @@ namespace AuthServer.Controllers
 
             if (!success)
             {
+                // 로그인 실패 시 시도 횟수 증가
+                admin.LoginAttempts++;
+                if (admin.LoginAttempts >= 5)
+                {
+                    admin.LockedUntil = DateTime.UtcNow.AddMinutes(30);
+                    _logger.LogWarning("Admin account locked due to failed attempts: {Username}", request.Username);
+                }
+                await _adminRepository.UpdateAsync(admin);
+
                 return Unauthorized(new ErrorResponse("ADMIN_LOGIN_FAILED", message ?? "관리자 로그인 실패"));
             }
 
-            // TODO: 사용자가 실제 관리자인지 확인하는 로직 추가 필요
-            // 예: user.Role == "Admin" 체크
+            // 관리자 Role 검증
+            if (string.IsNullOrEmpty(admin.Role))
+            {
+                _logger.LogWarning("Admin has no role: {Username}", request.Username);
+                return StatusCode(403, new ErrorResponse("ADMIN_NO_ROLE", "관리자 권한이 설정되지 않았습니다. 시스템 관리자에게 문의하세요."));
+            }
+
+            // 로그인 성공 - 시도 횟수 초기화 및 마지막 로그인 시간 업데이트
+            admin.LoginAttempts = 0;
+            admin.LockedUntil = null;
+            admin.LastLoginAt = DateTime.UtcNow;
+            await _adminRepository.UpdateAsync(admin);
+
+            _logger.LogInformation("Admin login successful: {Username}, Role: {Role}", request.Username, admin.Role);
 
             return Ok(new
             {
                 token,
-                expiresIn = _jwtSettings.Get("Admin").LoginTokenExpirationMinutes
+                expiresIn = _jwtSettings.Get("Admin").LoginTokenExpirationMinutes,
+                role = admin.Role
             });
         }
 
@@ -120,6 +165,7 @@ namespace AuthServer.Controllers
         }
 
         // GET: api/admin/users
+        [Authorize]
         [HttpGet("users")]
         public async Task<IActionResult> GetAllUsers(
             [FromQuery] int page = 1,
@@ -130,7 +176,6 @@ namespace AuthServer.Controllers
             _logger.LogInformation("Get all users request - Page: {Page}, PageSize: {PageSize}, Search: {Search}",
                 page, pageSize, search);
 
-            // TODO: 관리자 권한 검증 추가 (Authorization 헤더에서 Admin Access Token 확인)
             // TODO: UserRepository에 페이징 및 검색 기능 추가 필요
 
             // 페이지 크기 제한
@@ -150,12 +195,11 @@ namespace AuthServer.Controllers
         }
 
         // GET: api/admin/users/{userId}
+        [Authorize]
         [HttpGet("users/{userId}")]
         public async Task<IActionResult> GetUser(int userId)
         {
             _logger.LogInformation("Get user request for userId: {UserId}", userId);
-
-            // TODO: 관리자 권한 검증 추가
 
             var user = await _userRepository.GetByIdAsync(userId);
             if (user == null)
@@ -177,12 +221,11 @@ namespace AuthServer.Controllers
         }
 
         // PATCH: api/admin/users/{userId}/lock
+        [Authorize]
         [HttpPatch("users/{userId}/lock")]
         public async Task<IActionResult> LockUser(int userId, [FromBody] LockUserRequest request)
         {
             _logger.LogInformation("Lock user request for userId: {UserId}, Lock: {Lock}", userId, request.Lock);
-
-            // TODO: 관리자 권한 검증 추가
 
             var user = await _userRepository.GetByIdAsync(userId);
             if (user == null)
@@ -222,12 +265,11 @@ namespace AuthServer.Controllers
         }
 
         // POST: api/admin/users/{userId}/reset-password
+        [Authorize]
         [HttpPost("users/{userId}/reset-password")]
         public async Task<IActionResult> ResetPassword(int userId, [FromBody] ResetPasswordRequest request)
         {
             _logger.LogInformation("Reset password request for userId: {UserId}", userId);
-
-            // TODO: 관리자 권한 검증 추가
 
             var user = await _userRepository.GetByIdAsync(userId);
             if (user == null)
@@ -253,13 +295,12 @@ namespace AuthServer.Controllers
         }
 
         // DELETE: api/admin/users/{userId}/sessions
+        [Authorize]
         [HttpDelete("users/{userId}/sessions")]
         public async Task<IActionResult> TerminateSessions(int userId, [FromQuery] string? deviceId = null)
         {
             _logger.LogInformation("Terminate sessions request for userId: {UserId}, DeviceId: {DeviceId}",
                 userId, deviceId);
-
-            // TODO: 관리자 권한 검증 추가
 
             var user = await _userRepository.GetByIdAsync(userId);
             if (user == null)
@@ -301,12 +342,11 @@ namespace AuthServer.Controllers
         }
 
         // DELETE: api/admin/users/{userId}
+        [Authorize]
         [HttpDelete("users/{userId}")]
         public async Task<IActionResult> DeleteUser(int userId)
         {
             _logger.LogInformation("Delete user request for userId: {UserId}", userId);
-
-            // TODO: 관리자 권한 검증 추가
 
             var user = await _userRepository.GetByIdAsync(userId);
             if (user == null)
@@ -326,24 +366,39 @@ namespace AuthServer.Controllers
         }
 
         // GET: api/admin/statistics
+        [Authorize]
         [HttpGet("statistics")]
         public async Task<IActionResult> GetStatistics()
         {
             _logger.LogInformation("Get statistics request");
 
-            // TODO: 관리자 권한 검증 추가
-            // TODO: UserRepository에 통계 메서드 추가 필요
-            // - GetTotalUsersCountAsync()
-            // - GetActiveUsersCountAsync()
-            // - GetLockedUsersCountAsync()
-            // - GetTodayRegistrationsCountAsync()
-            // - GetTodayLoginsCountAsync()
-
-            return Ok(new
+            try
             {
-                message = "통계 기능 - 구현 대기",
-                note = "UserRepository에 통계 관련 메서드들 추가 필요"
-            });
+                var totalUsers = await _userRepository.GetTotalUsersCountAsync();
+                var activeUsers = await _userRepository.GetActiveUsersCountAsync();
+                var lockedUsers = await _userRepository.GetLockedUsersCountAsync();
+                var todayRegistrations = await _userRepository.GetTodayRegistrationsCountAsync();
+                var todayLogins = await _userRepository.GetTodayLoginsCountAsync();
+
+                // TODO: OnlineUsers는 Redis에서 현재 활성 세션 수를 가져와야 함
+                // RefreshToken 키 개수를 세거나, 별도의 온라인 사용자 추적 메커니즘 필요
+                var onlineUsers = 0;
+
+                return Ok(new
+                {
+                    totalUsers,
+                    activeUsers,
+                    lockedUsers,
+                    onlineUsers,
+                    todayRegistrations,
+                    todayLogins
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "통계 조회 중 오류 발생");
+                return StatusCode(500, new ErrorResponse("STATISTICS_ERROR", "통계 조회 중 오류가 발생했습니다."));
+            }
         }
     }
 }

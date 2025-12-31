@@ -13,5 +13,12 @@ namespace AuthServer.Data.Repositories
         Task<bool> ExistsAsync(string username, string email);
         Task<List<User>> GetAllActiveUsersAsync();
         Task<int> GetCountAsync();
+
+        // 통계 메서드
+        Task<int> GetTotalUsersCountAsync();
+        Task<int> GetActiveUsersCountAsync();
+        Task<int> GetLockedUsersCountAsync();
+        Task<int> GetTodayRegistrationsCountAsync();
+        Task<int> GetTodayLoginsCountAsync();
     }
 }

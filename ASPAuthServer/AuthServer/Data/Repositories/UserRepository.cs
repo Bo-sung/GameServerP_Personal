@@ -114,5 +114,36 @@ namespace AuthServer.Data.Repositories
             var sql = "SELECT COUNT(*) FROM Users WHERE IsActive = 1";
             return await _db.ExecuteScalarAsync<int>(sql);
         }
+
+        // 통계 메서드 구현
+        public async Task<int> GetTotalUsersCountAsync()
+        {
+            var sql = "SELECT COUNT(*) FROM Users WHERE IsActive = 1";
+            return await _db.ExecuteScalarAsync<int>(sql);
+        }
+
+        public async Task<int> GetActiveUsersCountAsync()
+        {
+            var sql = "SELECT COUNT(*) FROM Users WHERE IsActive = 1 AND LockedUntil IS NULL";
+            return await _db.ExecuteScalarAsync<int>(sql);
+        }
+
+        public async Task<int> GetLockedUsersCountAsync()
+        {
+            var sql = "SELECT COUNT(*) FROM Users WHERE IsActive = 1 AND LockedUntil IS NOT NULL AND LockedUntil > UTC_TIMESTAMP()";
+            return await _db.ExecuteScalarAsync<int>(sql);
+        }
+
+        public async Task<int> GetTodayRegistrationsCountAsync()
+        {
+            var sql = "SELECT COUNT(*) FROM Users WHERE IsActive = 1 AND DATE(CreatedAt) = CURDATE()";
+            return await _db.ExecuteScalarAsync<int>(sql);
+        }
+
+        public async Task<int> GetTodayLoginsCountAsync()
+        {
+            var sql = "SELECT COUNT(*) FROM Users WHERE IsActive = 1 AND DATE(LastLoginAt) = CURDATE()";
+            return await _db.ExecuteScalarAsync<int>(sql);
+        }
     }
 }

@@ -3,7 +3,10 @@ using AuthServer.Data;
 using AuthServer.Data.Repositories;
 using AuthServer.Services.Auth;
 using AuthServer.Services.Tokens;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 namespace AuthServer
 {
@@ -52,10 +55,33 @@ namespace AuthServer
             builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
             builder.Services.AddSingleton<IRedisConnectionFactory, RedisConnectionFactory>();
             builder.Services.AddScoped<IUserRepository, UserRepository>();
+            builder.Services.AddScoped<IAdminRepository, AdminRepository>();
 
             // 비즈니스 서비스 등록
             builder.Services.AddScoped<ITokenService, TokenService>();
             builder.Services.AddScoped<IAuthService, AuthService>();
+
+            // JWT Authentication 설정 (Admin용)
+            var adminJwtSettings = builder.Configuration.GetSection("AdminJwtSettings").Get<JwtSettings>()
+                ?? throw new InvalidOperationException("AdminJwtSettings not found in configuration");
+
+            builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddJwtBearer(options =>
+                {
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidateAudience = true,
+                        ValidateLifetime = true,
+                        ValidateIssuerSigningKey = true,
+                        ValidIssuer = adminJwtSettings.Issuer,
+                        ValidAudience = adminJwtSettings.Audience,
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(adminJwtSettings.SecretKey)),
+                        ClockSkew = TimeSpan.Zero // 토큰 만료 시간에 여유 시간 제거
+                    };
+                });
+
+            builder.Services.AddAuthorization();
 
             var app = builder.Build();
 
@@ -85,6 +111,10 @@ namespace AuthServer
 
             // DB 초기화 (테이블 생성 및 시드 데이터)
             await InitializeDatabaseAsync(app.Services);
+
+            // Authentication & Authorization 미들웨어 추가
+            app.UseAuthentication();
+            app.UseAuthorization();
 
             // Controller 라우팅 활성화
             app.MapControllers();

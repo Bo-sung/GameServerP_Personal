@@ -3,6 +3,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.modernwpf.com/2019"
         xmlns:controls="clr-namespace:GMTool.Views.Controls"
+        xmlns:vm="clr-namespace:GMTool.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:MainWindowViewModel}"
         Title="GM Tool"
         Width="1400"
         Height="900"
@@ -85,22 +90,18 @@
 
                     <!-- 메뉴 -->
                     <StackPanel Grid.Row="1" Margin="0,16,0,0">
-                        <Button x:Name="DashboardButton"
+                        <Button Command="{Binding NavigateToDashboardCommand}"
                                 Content="📊 대시보드"
                                 Style="{StaticResource SidebarButtonStyle}" />
 
-                        <Button x:Name="UsersButton"
+                        <Button Command="{Binding NavigateToUsersCommand}"
                                 Content="👥 사용자 관리"
-                                Style="{StaticResource SidebarButtonStyle}" />
-
-                        <Button x:Name="StatisticsButton"
-                                Content="📈 통계"
                                 Style="{StaticResource SidebarButtonStyle}" />
 
                         <Separator Background="#34495E"
                                  Margin="8,16" />
 
-                        <Button x:Name="SettingsButton"
+                        <Button Command="{Binding NavigateToSettingsCommand}"
                                 Content="⚙️ 설정"
                                 Style="{StaticResource SidebarButtonStyle}" />
                     </StackPanel>
@@ -112,12 +113,11 @@
                             BorderBrush="#34495E"
                             BorderThickness="0,1,0,0">
                         <StackPanel>
-                            <TextBlock x:Name="CurrentUserText"
-                                     Text="관리자: admin"
+                            <TextBlock Text="{Binding CurrentUserDisplay}"
                                      FontSize="12"
                                      Foreground="#BDC3C7"
                                      Margin="0,0,0,8" />
-                            <Button x:Name="LogoutButton"
+                            <Button Command="{Binding LogoutCommand}"
                                     Content="🚪 로그아웃"
                                     Style="{StaticResource SidebarButtonStyle}"
                                     Padding="0"

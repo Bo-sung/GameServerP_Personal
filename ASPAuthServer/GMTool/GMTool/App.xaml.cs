@@ -6,6 +6,7 @@ using GMTool.Services.Logging;
 using GMTool.Services.Navigation;
 using GMTool.Services.Statistics;
 using GMTool.Services.User;
+using GMTool.ViewModels;
 using GMTool.Views;
 using Microsoft.Extensions.DependencyInjection;
 using System;
@@ -20,6 +21,8 @@ public partial class App : Application
 {
     private IServiceProvider? _serviceProvider;
 
+    public static IServiceProvider? ServiceProvider { get; private set; }
+
     public IServiceProvider Services => _serviceProvider
         ?? throw new InvalidOperationException("ServiceProvider가 초기화되지 않았습니다.");
 
@@ -27,23 +30,33 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        // 의존성 주입 컨테이너 설정
-        var services = new ServiceCollection();
-        ConfigureServices(services);
-        _serviceProvider = services.BuildServiceProvider();
-
-        // LoginWindow 표시
-        var loginWindow = _serviceProvider.GetRequiredService<LoginWindow>();
-
-        // 로그인 성공 시 MainWindow 열기
-        loginWindow.LoginSucceeded += (sender, args) =>
+        try
         {
-            var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
-            mainWindow.Show();
-            loginWindow.Close();
-        };
+            // 의존성 주입 컨테이너 설정
+            var services = new ServiceCollection();
+            ConfigureServices(services);
+            _serviceProvider = services.BuildServiceProvider();
+            ServiceProvider = _serviceProvider;
 
-        loginWindow.Show();
+            // LoginWindow 표시
+            var loginWindow = _serviceProvider.GetRequiredService<LoginWindow>();
+
+            // 로그인 성공 시 MainWindow 열기
+            loginWindow.LoginSucceeded += (sender, args) =>
+            {
+                var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
+                mainWindow.Show();
+                loginWindow.Close();
+            };
+
+            loginWindow.Show();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"애플리케이션 시작 실패:\n\n{ex.Message}\n\nStackTrace:\n{ex.StackTrace}",
+                "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+            Environment.Exit(1);
+        }
     }
 
     private void ConfigureServices(IServiceCollection services)
@@ -102,18 +115,21 @@ public partial class App : Application
             .AddHttpMessageHandler<TokenRefreshHandler>();
 
         // ========== ViewModels ==========
-        // TODO: ViewModels 추가 시 여기에 등록
-        // services.AddTransient<LoginViewModel>();
-        // services.AddTransient<DashboardViewModel>();
-        // services.AddTransient<UserListViewModel>();
+        services.AddTransient<LoginViewModel>();
+        services.AddTransient<DashboardViewModel>();
+        services.AddTransient<UserListViewModel>();
+        services.AddTransient<MainWindowViewModel>();
 
         // ========== Views ==========
 
-        // LoginWindow (Transient - 매번 새로 생성)
+        // Windows
         services.AddTransient<LoginWindow>();
-
-        // MainWindow (Transient - 필요 시 생성)
         services.AddTransient<MainWindow>();
+
+        // Pages
+        services.AddTransient<Views.Pages.DashboardPage>();
+        services.AddTransient<Views.Pages.UserListPage>();
+        services.AddTransient<Views.Pages.SettingsPage>();
     }
 
     protected override void OnExit(ExitEventArgs e)

@@ -10,9 +10,14 @@ namespace GMTool.Services.Navigation
         void SetFrame(Frame frame);
 
         /// <summary>
-        /// 페이지로 이동
+        /// 페이지로 이동 (제네릭)
         /// </summary>
         void NavigateTo<T>() where T : Page, new();
+
+        /// <summary>
+        /// 페이지로 이동 (문자열 키)
+        /// </summary>
+        void NavigateTo(string pageKey);
 
         /// <summary>
         /// 뒤로 가기

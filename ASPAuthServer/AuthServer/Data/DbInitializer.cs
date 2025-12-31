@@ -91,8 +91,8 @@ namespace AuthServer.Data
             // Users 테이블 확인 및 생성
             await EnsureUsersTableAsync(connection);
 
-            // 추가 테이블이 필요하면 여기에 추가
-            // await EnsureSessionsTableAsync(connection);
+            // Admins 테이블 확인 및 생성
+            await EnsureAdminsTableAsync(connection);
         }
 
         /// <summary>
@@ -141,6 +141,54 @@ namespace AuthServer.Data
         }
 
         /// <summary>
+        /// Admins 테이블 확인 및 생성
+        /// </summary>
+        private async Task EnsureAdminsTableAsync(MySqlConnection connection)
+        {
+            var tableName = "Admins";
+
+            if (!await TableExistsAsync(connection, tableName))
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"  → 테이블 '{tableName}' 생성 중...");
+                Console.ResetColor();
+
+                var createTableSql = @"
+                    CREATE TABLE Admins (
+                        Id INT AUTO_INCREMENT PRIMARY KEY,
+                        Username VARCHAR(50) NOT NULL UNIQUE,
+                        Email VARCHAR(100) NOT NULL UNIQUE,
+                        PasswordHash VARCHAR(255) NOT NULL,
+                        CreatedAt DATETIME NOT NULL,
+                        LastLoginAt DATETIME NULL,
+                        IsActive TINYINT(1) NOT NULL DEFAULT 1,
+                        LoginAttempts INT NOT NULL DEFAULT 0,
+                        LockedUntil DATETIME NULL,
+                        Role VARCHAR(50) NOT NULL DEFAULT 'Admin',
+                        Permissions TEXT NULL,
+                        INDEX idx_username (Username),
+                        INDEX idx_email (Email),
+                        INDEX idx_isactive (IsActive),
+                        INDEX idx_role (Role)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                ";
+
+                using var command = new MySqlCommand(createTableSql, connection);
+                await command.ExecuteNonQueryAsync();
+
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine($"  ✓ 테이블 '{tableName}' 생성 완료");
+                Console.ResetColor();
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine($"  ✓ 테이블 '{tableName}' 존재 확인");
+                Console.ResetColor();
+            }
+        }
+
+        /// <summary>
         /// 테이블 존재 여부 확인
         /// </summary>
         private async Task<bool> TableExistsAsync(MySqlConnection connection, string tableName)
@@ -167,12 +215,70 @@ namespace AuthServer.Data
             using var connection = new MySqlConnection(_connectionString);
             await connection.OpenAsync();
 
-            // Users 테이블이 비어있는지 확인
+            // Users 테이블 시딩
+            await SeedUsersTableAsync(connection);
+
+            // Admins 테이블 시딩
+            await SeedAdminsTableAsync(connection);
+        }
+
+        /// <summary>
+        /// Users 테이블 기본 데이터 시딩
+        /// </summary>
+        private async Task SeedUsersTableAsync(MySqlConnection connection)
+        {
             var countSql = "SELECT COUNT(*) FROM Users";
             using var countCmd = new MySqlCommand(countSql, connection);
             var userCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
 
             if (userCount == 0)
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine("  → 기본 테스트 사용자 계정 생성 중...");
+                Console.ResetColor();
+
+                var passwordHash = HashPassword("user123");
+                var insertSql = @"
+                    INSERT INTO Users (Username, Email, PasswordHash, CreatedAt, IsActive, LoginAttempts)
+                    VALUES (@Username, @Email, @PasswordHash, @CreatedAt, @IsActive, @LoginAttempts)
+                ";
+
+                using var insertCmd = new MySqlCommand(insertSql, connection);
+                insertCmd.Parameters.AddWithValue("@Username", "testuser");
+                insertCmd.Parameters.AddWithValue("@Email", "testuser@example.com");
+                insertCmd.Parameters.AddWithValue("@PasswordHash", passwordHash);
+                insertCmd.Parameters.AddWithValue("@CreatedAt", DateTime.UtcNow);
+                insertCmd.Parameters.AddWithValue("@IsActive", true);
+                insertCmd.Parameters.AddWithValue("@LoginAttempts", 0);
+
+                await insertCmd.ExecuteNonQueryAsync();
+
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("  ✓ 기본 테스트 사용자 계정 생성 완료");
+                Console.ResetColor();
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine("     Username: testuser");
+                Console.WriteLine("     Password: user123");
+                Console.ResetColor();
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine($"  ✓ 기존 사용자 확인 ({userCount}명)");
+                Console.ResetColor();
+            }
+        }
+
+        /// <summary>
+        /// Admins 테이블 기본 데이터 시딩
+        /// </summary>
+        private async Task SeedAdminsTableAsync(MySqlConnection connection)
+        {
+            var countSql = "SELECT COUNT(*) FROM Admins";
+            using var countCmd = new MySqlCommand(countSql, connection);
+            var adminCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
+
+            if (adminCount == 0)
             {
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 Console.WriteLine("  → 기본 관리자 계정 생성 중...");
@@ -181,8 +287,8 @@ namespace AuthServer.Data
                 // 기본 관리자 계정 생성 (admin / admin123)
                 var passwordHash = HashPassword("admin123");
                 var insertSql = @"
-                    INSERT INTO Users (Username, Email, PasswordHash, CreatedAt, IsActive, LoginAttempts)
-                    VALUES (@Username, @Email, @PasswordHash, @CreatedAt, @IsActive, @LoginAttempts)
+                    INSERT INTO Admins (Username, Email, PasswordHash, CreatedAt, IsActive, LoginAttempts, Role, Permissions)
+                    VALUES (@Username, @Email, @PasswordHash, @CreatedAt, @IsActive, @LoginAttempts, @Role, @Permissions)
                 ";
 
                 using var insertCmd = new MySqlCommand(insertSql, connection);
@@ -192,6 +298,8 @@ namespace AuthServer.Data
                 insertCmd.Parameters.AddWithValue("@CreatedAt", DateTime.UtcNow);
                 insertCmd.Parameters.AddWithValue("@IsActive", true);
                 insertCmd.Parameters.AddWithValue("@LoginAttempts", 0);
+                insertCmd.Parameters.AddWithValue("@Role", "SuperAdmin");
+                insertCmd.Parameters.AddWithValue("@Permissions", DBNull.Value); // 모든 권한
 
                 await insertCmd.ExecuteNonQueryAsync();
 
@@ -201,6 +309,7 @@ namespace AuthServer.Data
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.WriteLine("     Username: admin");
                 Console.WriteLine("     Password: admin123");
+                Console.WriteLine("     Role: SuperAdmin");
                 Console.ResetColor();
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 Console.WriteLine("     ⚠️  보안을 위해 비밀번호를 즉시 변경하세요!");
@@ -209,7 +318,7 @@ namespace AuthServer.Data
             else
             {
                 Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine($"  ✓ 기존 사용자 확인 ({userCount}명)");
+                Console.WriteLine($"  ✓ 기존 관리자 확인 ({adminCount}명)");
                 Console.ResetColor();
             }
         }

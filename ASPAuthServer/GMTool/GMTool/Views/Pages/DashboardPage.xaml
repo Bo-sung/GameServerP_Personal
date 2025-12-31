@@ -2,6 +2,11 @@
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.modernwpf.com/2019"
+      xmlns:vm="clr-namespace:GMTool.ViewModels"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      mc:Ignorable="d"
+      d:DataContext="{d:DesignInstance Type=vm:DashboardViewModel}"
       Title="대시보드">
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -25,12 +30,13 @@
                 </StackPanel>
 
                 <Button Grid.Column="1"
-                        x:Name="RefreshButton"
+                        Command="{Binding LoadStatisticsCommand}"
                         Content="🔄 새로고침"
                         Style="{StaticResource AccentButtonStyle}"
                         Height="40"
                         Padding="20,0"
-                        VerticalAlignment="Bottom" />
+                        VerticalAlignment="Bottom"
+                        IsEnabled="{Binding IsLoading, Converter={StaticResource InverseBooleanConverter}}" />
             </Grid>
 
             <!-- 통계 카드 -->
@@ -47,8 +53,7 @@
                                    FontSize="14"
                                    Foreground="#666"
                                    Margin="0,0,0,8" />
-                        <TextBlock x:Name="TotalUsersText"
-                                   Text="0"
+                        <TextBlock Text="{Binding TotalUsers}"
                                    FontSize="36"
                                    FontWeight="SemiBold"
                                    Foreground="#333" />
@@ -71,8 +76,7 @@
                                    FontSize="14"
                                    Foreground="#666"
                                    Margin="0,0,0,8" />
-                        <TextBlock x:Name="ActiveUsersText"
-                                   Text="0"
+                        <TextBlock Text="{Binding ActiveUsers}"
                                    FontSize="36"
                                    FontWeight="SemiBold"
                                    Foreground="#4CAF50" />
@@ -95,8 +99,7 @@
                                    FontSize="14"
                                    Foreground="#666"
                                    Margin="0,0,0,8" />
-                        <TextBlock x:Name="LockedUsersText"
-                                   Text="0"
+                        <TextBlock Text="{Binding LockedUsers}"
                                    FontSize="36"
                                    FontWeight="SemiBold"
                                    Foreground="#F44336" />
@@ -119,8 +122,7 @@
                                    FontSize="14"
                                    Foreground="#666"
                                    Margin="0,0,0,8" />
-                        <TextBlock x:Name="OnlineUsersText"
-                                   Text="0"
+                        <TextBlock Text="{Binding OnlineUsers}"
                                    FontSize="36"
                                    FontWeight="SemiBold"
                                    Foreground="#2196F3" />
@@ -143,8 +145,7 @@
                                    FontSize="14"
                                    Foreground="#666"
                                    Margin="0,0,0,8" />
-                        <TextBlock x:Name="TodayRegistrationsText"
-                                   Text="0"
+                        <TextBlock Text="{Binding TodayRegistrations}"
                                    FontSize="36"
                                    FontWeight="SemiBold"
                                    Foreground="#9C27B0" />
@@ -166,8 +167,7 @@
                                    FontSize="14"
                                    Foreground="#666"
                                    Margin="0,0,0,8" />
-                        <TextBlock x:Name="TodayLoginsText"
-                                   Text="0"
+                        <TextBlock Text="{Binding TodayLogins}"
                                    FontSize="36"
                                    FontWeight="SemiBold"
                                    Foreground="#FF9800" />

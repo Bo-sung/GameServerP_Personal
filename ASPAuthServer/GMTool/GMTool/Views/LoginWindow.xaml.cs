@@ -1,109 +1,58 @@
-﻿using GMTool.Services.Auth;
-using GMTool.Services.Logging;
+﻿using GMTool.ViewModels;
 using System;
 using System.Windows;
+using System.Windows.Input;
 
 namespace GMTool.Views
 {
     public partial class LoginWindow : Window
     {
-        private readonly IAuthService _authService;
-        private readonly ILogService _logService;
+        private readonly LoginViewModel _viewModel;
 
         public event EventHandler? LoginSucceeded;
 
-        public LoginWindow(IAuthService authService, ILogService logService)
+        public LoginWindow(LoginViewModel viewModel)
         {
             InitializeComponent();
 
-            _authService = authService;
-            _logService = logService;
+            _viewModel = viewModel;
+            DataContext = _viewModel;
 
-            // 로그인 버튼 클릭 이벤트
-            LoginButton.Click += LoginButton_Click;
+            // ViewModel의 LoginSucceeded 이벤트를 Window의 이벤트로 전달
+            _viewModel.LoginSucceeded += (s, e) => LoginSucceeded?.Invoke(this, e);
 
-            // Enter 키로 로그인
-            PasswordBox.KeyDown += (s, e) =>
+            // Enter 키로 로그인 (PasswordBox는 바인딩 불가하므로 코드비하인드에서 처리)
+            PasswordBox.KeyDown += PasswordBox_KeyDown;
+        }
+
+        private void PasswordBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
             {
-                if (e.Key == System.Windows.Input.Key.Enter)
+                // Password를 ViewModel에 전달하고 로그인 실행
+                _viewModel.Password = PasswordBox.Password;
+                if (_viewModel.LoginCommand.CanExecute(null))
                 {
-                    LoginButton_Click(this, new RoutedEventArgs());
+                    _viewModel.LoginCommand.Execute(null);
                 }
-            };
-        }
-
-        private async void LoginButton_Click(object sender, RoutedEventArgs e)
-        {
-            var username = UsernameTextBox.Text.Trim();
-            var password = PasswordBox.Password;
-
-            // 유효성 검사
-            if (string.IsNullOrEmpty(username))
-            {
-                ShowError("사용자명을 입력하세요.");
-                return;
-            }
-
-            if (string.IsNullOrEmpty(password))
-            {
-                ShowError("비밀번호를 입력하세요.");
-                return;
-            }
-
-            // UI 업데이트
-            SetLoading(true);
-            HideError();
-
-            try
-            {
-                _logService.Info($"로그인 시도: {username}");
-
-                // 로그인 시도
-                var token = await _authService.LoginAsync(username, password);
-
-                if (string.IsNullOrEmpty(token))
-                {
-                    _logService.Error("로그인 실패: 인증 정보가 올바르지 않습니다.");
-                    ShowError("로그인 실패. 사용자명 또는 비밀번호를 확인하세요.");
-                }
-
-                _logService.Success($"로그인 성공: {username}");
-
-                // 접속 토큰 교환
-                await _authService.ExchangeTokenAsync(token);
-
-                // 로그인 성공 이벤트 발생
-                LoginSucceeded?.Invoke(this, EventArgs.Empty);
-            }
-            catch (Exception ex)
-            {
-                _logService.Error($"로그인 오류: {ex.Message}");
-                ShowError($"로그인 중 오류가 발생했습니다: {ex.Message}");
-            }
-            finally
-            {
-                SetLoading(false);
             }
         }
 
-        private void SetLoading(bool isLoading)
+        // PasswordBox는 바인딩 불가하므로 Command 실행 전에 Password 전달
+        protected override void OnPreviewKeyDown(KeyEventArgs e)
         {
-            LoginButton.IsEnabled = !isLoading;
-            UsernameTextBox.IsEnabled = !isLoading;
-            PasswordBox.IsEnabled = !isLoading;
-            LoadingRing.IsActive = isLoading;
-            LoadingRing.Visibility = isLoading ? Visibility.Visible : Visibility.Collapsed;
+            base.OnPreviewKeyDown(e);
+            if (PasswordBox.IsFocused || UsernameTextBox.IsFocused)
+            {
+                _viewModel.Password = PasswordBox.Password;
+            }
         }
 
-        private void ShowError(string message)
+        // 로그인 버튼 클릭 시에도 Password 전달 보장
+        protected override void OnPreviewMouseDown(MouseButtonEventArgs e)
         {
-            ErrorMessageText.Text = message;
-            ErrorMessageBorder.Visibility = Visibility.Visible;
-        }
-
-        private void HideError()
-        {
-            ErrorMessageBorder.Visibility = Visibility.Collapsed;
+            base.OnPreviewMouseDown(e);
+            _viewModel.Password = PasswordBox.Password;
         }
     }
 }
